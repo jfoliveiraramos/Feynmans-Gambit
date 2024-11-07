@@ -71,18 +71,3 @@ The following is the communication flow between the components:
    - Processes **real-time metrics**, tracks player performance, and generates reports.
    - Stores aggregated statistics for long-term analysis.
 
-## Diagram Overview
-
-```plaintextEngine
-+-------------+    WebSocket    +-------------+   API Call   +----------------+
-|   Deno 2    | <-------------> |   Rust      | <----------> |       Zig      |
-| (Frontend)  |                 | (Backend)   |              | (Chess Engine) |
-|             |                 |             |              |                |
-+-------------+                 +-------------+              +----------------+
-       |                              |                               |
-       |  API (Game State)            |  DB Operations                |
-       v                              v                               v
-+-------------+                 +--------------+              +---------------+
-|      Go     | <-------------> |   Database   | <----------> |     Data      |
-| (Analytics) |                 | (Player/Game)|              |    Analysis   |
-+-------------+                 +--------------+              +---------------+
