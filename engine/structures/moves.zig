@@ -7,9 +7,9 @@ const Piece = game.Piece;
 pub const Move = struct {
     type: enum { Quiet, Capture, Castling },
     promotion: bool = false,
-    destination: struct {
-        x: i32,
-        y: i32,
+    dest: struct {
+        x: usize,
+        y: usize,
     },
 };
 
@@ -18,24 +18,41 @@ pub fn getMoves(board: Board, pos: struct { x: usize, y: usize }) ArrayList(Move
 
     return switch (piece.type) {
         .Pawn => getPawnMoves(board, .{ .x = pos.x, .y = pos.y }, piece),
-        else => ArrayList(Move).init(std.heap.HeapAllocator),
+        else => ArrayList(Move).init(std.heap.page_allocator),
     };
 }
 
 fn getPawnMoves(board: Board, pos: struct { x: usize, y: usize }, piece: *const Piece) ArrayList(Move) {
-    var moves = ArrayList(Move).init(std.heap.HeapAllocator);
+    var moves = ArrayList(Move).init(std.heap.page_allocator);
 
-    const target = board[pos.y + 1][pos.x];
-
-    if (target != null) {
-        if (!piece.isSameColor(target)) {
-            moves.append(.{ .Capture, false, .{ .x, .y + 1 } });
+    for (1..3) |i| {
+        const target = board[pos.y + i][pos.x];
+        if (target != null) {
+            if (!piece.isSameColor(target.?)) {
+                moves.append(.{
+                    .type = .Capture,
+                    .promotion = false,
+                    .dest = .{
+                        .x = pos.x,
+                        .y = pos.y + i,
+                    },
+                }) catch |err| {
+                    std.debug.print("Error: {}", .{err});
+                };
+            }
+        } else {
+            moves.append(.{
+                .type = .Quiet,
+                .promotion = false,
+                .dest = .{
+                    .x = pos.x,
+                    .y = pos.y + i,
+                },
+            }) catch |err| {
+                std.debug.print("Error: {}", .{err});
+            };
         }
-    } else {
-        moves.append(.{ .Quiet, false, .{ .x, .y + 1 } });
     }
-
-    target = board[pos.y + 2][pos.x];
 
     return moves;
 }

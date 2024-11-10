@@ -1,7 +1,9 @@
 const std = @import("std");
+const allocator = std.heap.page_allocator;
 
 pub const Piece = struct {
-    type: enum { Pawn, Bishop, Knight, Rook, Queen, King },
+    pub const Type = enum { Pawn, Bishop, Knight, Rook, Queen, King };
+    type: Type,
     white: bool,
 
     pub fn toString(self: *const Piece) u8 {
@@ -14,42 +16,38 @@ pub const Piece = struct {
             .King => 'K',
         };
     }
+
+    pub fn isSameColor(self: *const Piece, p2: *const Piece) bool {
+        return self.white == p2.white;
+    }
 };
 
-pub const Board = [8][8]?*const Piece;
+pub const Board = [8][8]?*Piece;
 
 pub const Game = struct {
+    const Self = @This();
     board: Board = .{.{null} ** 8} ** 8,
     white_turn: bool = true,
 
-    pub fn init(self: *Game) void {
-        initBoard(self);
+    pub fn init(self: *Self) !void {
+        try self.initBoard();
     }
 
-    fn initBoard(self: *Game) void {
-        for (0..8) |i| {
-            self.board[1][i] = &Piece{ .type = .Pawn, .white = true };
+    fn initBoard(self: *Self) !void {
+        for (0..8) |x| {
+            try initPeace(self, x, 1, .Pawn, false);
+            try initPeace(self, x, 6, .Pawn, true);
         }
-        self.board[0][0] = &Piece{ .type = .Rook, .white = false };
-        self.board[0][1] = &Piece{ .type = .Knight, .white = false };
-        self.board[0][2] = &Piece{ .type = .Bishop, .white = false };
-        self.board[0][3] = &Piece{ .type = .Queen, .white = false };
-        self.board[0][4] = &Piece{ .type = .King, .white = false };
-        self.board[0][5] = &Piece{ .type = .Bishop, .white = false };
-        self.board[0][6] = &Piece{ .type = .Knight, .white = false };
-        self.board[0][7] = &Piece{ .type = .Rook, .white = false };
+        const layout = [8]Piece.Type{ .Rook, .Knight, .Bishop, .Queen, .King, .Bishop, .Knight, .Rook };
+        for (0.., layout) |x, piece_type| {
+            try initPeace(self, x, 0, piece_type, false);
+            try initPeace(self, x, 7, piece_type, true);
+        }
+    }
 
-        for (0..8) |i| {
-            self.board[6][i] = &Piece{ .type = .Pawn, .white = false };
-        }
-        self.board[7][0] = &Piece{ .type = .Rook, .white = true };
-        self.board[7][1] = &Piece{ .type = .Knight, .white = true };
-        self.board[7][2] = &Piece{ .type = .Bishop, .white = true };
-        self.board[7][3] = &Piece{ .type = .Queen, .white = true };
-        self.board[7][4] = &Piece{ .type = .King, .white = true };
-        self.board[7][5] = &Piece{ .type = .Bishop, .white = true };
-        self.board[7][6] = &Piece{ .type = .Knight, .white = true };
-        self.board[7][7] = &Piece{ .type = .Rook, .white = true };
+    fn initPeace(self: *Self, x: usize, y: usize, piece_type: Piece.Type, white: bool) !void {
+        self.board[y][x] = try allocator.create(Piece);
+        self.board[y][x].?.* = .{ .type = piece_type, .white = white };
     }
 
     pub fn print(self: *Game) void {

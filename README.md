@@ -1,24 +1,24 @@
 # Feynman's Gambit Architecture
 
-**Feynman's Gambit** is an ambitious chess platform that integrates modern technologies to deliver high-performance chess game interactions, real-time analytics, and an engaging user experience. The platform will leverage **Deno 2**, **Zig**, **Rust**, and **Go**, each playing a distinct role within the system, to create a scalable, efficient, and responsive system architecture.
+**Feynman's Gambit** is an ambitious chess platform that integrates modern technologies to deliver high-performance chess game interactions, real-time analytics, and an engaging user experience. The platform will leverage **Zig**, **Rust**, **React**, and **Go**, each playing a distinct role within the system, to create a scalable, efficient, and responsive system architecture.
 
 ## Objective
 
 The objective is to create a scalable, performant, and modular chess platform that can handle real-time game logic, user interactions, game state management, data analytics, and provide a rich, dynamic user experience. The platform will use four different technologies, each specialised for different components of the system:
 
-- **Deno 2**: Frontend, User Interface, WebSocket Communication
 - **Zig**: Chess Engine, Game Logic, Board State
 - **Rust**: Backend, API Management, Database Interaction
+- **React**: Frontend, User Interface, WebSocket Communication
 - **Go**: Data Analytics, Real-Time Metrics, and Player Statistics
 
 ## Architecture Overview
 
-### 1. **Frontend (Deno 2)**
+### 1. **Frontend (React)**
 - **Role**: Client-side interaction, WebSockets, UI rendering.
-- **Technologies**: Deno 2 (Frontend framework)
+- **Technologies**: React (Frontend framework)
 - **Responsibilities**:
-  - **User Interface**: Deno 2 will handle the entire UI, rendering the chessboard, game state, player interactions (move/undo), and notifications.
-  - **Real-Time Communication**: Deno 2 will handle WebSocket connections to communicate with the Rust backend for real-time game updates.
+  - **User Interface**: React will handle the entire UI, rendering the chessboard, game state, player interactions (move/undo), and notifications.
+  - **Real-Time Communication**: React will handle WebSocket connections to communicate with the Rust backend for real-time game updates.
   - **Game State Rendering**: It will display updated game states, including moves, in real time.
   - **Player Interaction**: Capture user inputs (move pieces, make decisions) and send them to the backend for processing.
 
@@ -54,7 +54,7 @@ The objective is to create a scalable, performant, and modular chess platform th
 
 The following is the communication flow between the components:
 
-1. **Deno 2 (Frontend)**:
+1. **React (Frontend)**:
    - Sends **WebSocket requests** to the **Rust backend** for game interactions (starting games, making moves, updating game state).
    
 2. **Rust (Backend)**:
@@ -70,4 +70,3 @@ The following is the communication flow between the components:
    - Retrieves game data from the **Rust API** or **database**.
    - Processes **real-time metrics**, tracks player performance, and generates reports.
    - Stores aggregated statistics for long-term analysis.
-

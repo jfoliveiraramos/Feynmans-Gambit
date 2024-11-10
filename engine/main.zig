@@ -4,16 +4,19 @@ const Move = moves.Move;
 const ArrayList = std.ArrayList;
 const Game = @import("structures/game.zig").Game;
 
-pub fn main() void {
+pub fn main() !void {
     var game: Game = .{};
 
-    game.init();
-
+    try game.init();
     game.print();
 
-    const movements: ArrayList(Move) = moves.getMoves(game.board, .{ .x = 1, .y = 1 });
+    const movements: ArrayList(Move) = moves.getMoves(
+        game.board,
+        .{ .x = 1, .y = 1 },
+    );
 
+    // std.debug.print("Move {}", .{movements});
     for (movements.items) |move| {
-        std.debug.print("Move: {},{}", .{ move.destination.x, move.destination.y });
+        std.debug.print("Move: {},{}", .{ move.dest.x, move.dest.y });
     }
 }
