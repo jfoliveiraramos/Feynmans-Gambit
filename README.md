@@ -1,4 +1,4 @@
-# Feynman's Gambit Architecture
+# Feynman's Gambit
 
 **Feynman's Gambit** is an ambitious chess platform that integrates modern technologies to deliver high-performance chess game interactions, real-time analytics, and an engaging user experience. The platform will leverage **Deno 2**, **Zig**, **Rust**, and **Go**, each playing a distinct role within the system, to create a scalable, efficient, and responsive system architecture.
 
