@@ -7,16 +7,18 @@ const Game = @import("structures/game.zig").Game;
 pub fn main() !void {
     var game: Game = .{};
 
-    try game.init();
+    game.init();
     game.print();
 
-    const movements: ArrayList(Move) = moves.getMoves(
+    const movements = moves.getMoves(
         game.board,
         .{ .x = 1, .y = 1 },
     );
 
-    // std.debug.print("Move {}", .{movements});
-    for (movements.items) |move| {
-        std.debug.print("Move: {},{}", .{ move.dest.x, move.dest.y });
+    if (movements) |move_list| {
+        for (move_list.items) |move| {
+            std.debug.print("Move: {},{}", .{ move.dest.x, move.dest.y });
+        }
+        move_list.deinit();
     }
 }
