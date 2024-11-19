@@ -18,8 +18,8 @@ pub const Move = struct {
     }
 };
 
-pub fn getMoves(board: Board, pos: struct { x: usize, y: usize }) ?ArrayList(Move) {
-    if (board[pos.y * 8 + pos.x]) |piece| {
+pub fn getMoves(board: *Board, pos: struct { x: usize, y: usize }) ?ArrayList(Move) {
+    if (board.at(pos.x, pos.y)) |piece| {
         return switch (piece.type) {
             .Pawn => getPawnMoves(board, .{ .x = pos.x, .y = pos.y }, piece),
             else => unreachable,
@@ -28,15 +28,11 @@ pub fn getMoves(board: Board, pos: struct { x: usize, y: usize }) ?ArrayList(Mov
     return null;
 }
 
-fn getPawnMoves(board: Board, pos: struct { x: usize, y: usize }, piece: Piece) ArrayList(Move) {
+fn getPawnMoves(board: *Board, pos: struct { x: usize, y: usize }, piece: *Piece) ArrayList(Move) {
     var moves = ArrayList(Move).init(std.heap.page_allocator);
 
     for (1..3) |i| {
-        // if (i == 2 and ((piece.white and pos.y != 7) or (!piece.white and pos.y != 1))) {
-        //     continue;
-        // }
-
-        const spot = board[(pos.y + i) * 8 + pos.x];
+        const spot = board.at(pos.x, pos.y + i);
         if (spot) |target| {
             if (!piece.isSameColor(target)) {
                 moves.append(.{
