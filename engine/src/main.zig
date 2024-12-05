@@ -22,7 +22,7 @@ pub fn main() !void {
 
     const movements = moves.getMoves(
         &match.board,
-        .{ .x = 0, .y = 3 },
+        .{ .x = 3, .y = 3 },
     );
 
     if (movements) |move_list| {
