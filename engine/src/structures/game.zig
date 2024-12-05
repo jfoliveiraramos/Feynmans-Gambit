@@ -6,8 +6,9 @@ pub const Pos = struct { x: usize, y: usize };
 pub const Piece = struct {
     const Self = @This();
     pub const Type = enum { Pawn, Bishop, Knight, Rook, Queen, King };
+    pub const Color = enum { White, Black };
     type: Type,
-    white: bool,
+    color: Color,
 
     pub fn toString(self: Piece) u8 {
         return switch (self.type) {
@@ -20,14 +21,14 @@ pub const Piece = struct {
         };
     }
 
-    pub fn fromString(c: u8, white: bool) ?Piece {
+    pub fn fromString(c: u8, color: Piece.Color) ?Piece {
         return switch (c) {
-            'P' => .{ .type = .Pawn, .white = white },
-            'R' => .{ .type = .Rook, .white = white },
-            'H' => .{ .type = .Knight, .white = white },
-            'B' => .{ .type = .Bishop, .white = white },
-            'Q' => .{ .type = .Queen, .white = white },
-            'K' => .{ .type = .King, .white = white },
+            'P' => .{ .type = .Pawn, .color = color },
+            'R' => .{ .type = .Rook, .color = color },
+            'H' => .{ .type = .Knight, .color = color },
+            'B' => .{ .type = .Bishop, .color = color },
+            'Q' => .{ .type = .Queen, .color = color },
+            'K' => .{ .type = .King, .color = color },
             '.' => null,
             else => {
                 std.debug.print("Unreachable character: {}\n", .{c});
@@ -36,7 +37,7 @@ pub const Piece = struct {
         };
     }
     pub fn isSameColor(self: *Self, p2: *Piece) bool {
-        return self.white == p2.white;
+        return self.color == p2.color;
     }
 };
 
@@ -80,25 +81,24 @@ pub const Match = struct {
 
     fn initBoard(self: *Self, allocator: std.mem.Allocator) !void {
         for (0..8) |x| {
-            try initPeace(self, x, 1, .Pawn, false, allocator);
-            try initPeace(self, x, 6, .Pawn, true, allocator);
+            try initPeace(self, x, 1, .Pawn, .Black, allocator);
+            try initPeace(self, x, 6, .Pawn, .White, allocator);
         }
         const layout = [8]Piece.Type{ .Rook, .Knight, .Bishop, .Queen, .King, .Bishop, .Knight, .Rook };
         for (0.., layout) |x, piece_type| {
-            try initPeace(self, x, 0, piece_type, false, allocator);
-            try initPeace(self, x, 7, piece_type, true, allocator);
+            try initPeace(self, x, 0, piece_type, .Black, allocator);
+            try initPeace(self, x, 7, piece_type, .White, allocator);
         }
     }
 
-    fn initPeace(self: *Self, x: usize, y: usize, piece_type: Piece.Type, white: bool, allocator: std.mem.Allocator) !void {
+    fn initPeace(self: *Self, x: usize, y: usize, piece_type: Piece.Type, color: Piece.Color, allocator: std.mem.Allocator) !void {
         const piece: *Piece = try allocator.create(Piece);
         piece.type = piece_type;
-        piece.white = white;
+        piece.color = color;
 
-        if (white) {
-            self.white.addPiece(piece);
-        } else {
-            self.black.addPiece(piece);
+        switch (color) {
+            .White => self.white.addPiece(piece),
+            .Black => self.black.addPiece(piece),
         }
         self.board.set(piece, x, y);
     }

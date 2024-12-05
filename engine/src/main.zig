@@ -7,30 +7,35 @@ const Match = game.Match;
 const Move = moves.Move;
 
 pub fn main() !void {
-    var match: Match = .{};
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer {
         const deinit_status = gpa.deinit();
-        //fail test; can't try in defer as defer is executed after we return
-        if (deinit_status == .leak) @panic("TEST FAIL");
+        if (deinit_status == .leak) @panic(" FAIL");
     }
+
+    var match: Match = .{};
     try match.init(allocator);
     defer match.deinit(allocator);
+
     match.print();
 
     const movements = moves.getMoves(
         &match.board,
-        .{ .x = 1, .y = 1 },
+        .{ .x = 0, .y = 3 },
     );
 
     if (movements) |move_list| {
         std.debug.print("Number of moves: {}\n", .{move_list.items.len});
         for (move_list.items) |move| {
-            std.debug.print("Move: {},{}", .{ move.dest.x, move.dest.y });
+            std.debug.print("{s}Move: {},{}\n", .{
+                (if (move.type == .Capture) "Capture " else ""),
+                move.dest.x,
+                move.dest.y,
+            });
         }
         move_list.deinit();
     } else {
-        std.debug.print("No moves", .{});
+        std.debug.print("No moves\n", .{});
     }
 }
