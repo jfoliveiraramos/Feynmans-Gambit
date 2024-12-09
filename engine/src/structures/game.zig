@@ -21,15 +21,25 @@ pub const Piece = struct {
         };
     }
 
-    pub fn fromString(c: u8, color: Piece.Color) ?Piece {
+    pub fn typeFrom(c: u8) ?Type {
         return switch (c) {
-            'P' => .{ .type = .Pawn, .color = color },
-            'R' => .{ .type = .Rook, .color = color },
-            'H' => .{ .type = .Knight, .color = color },
-            'B' => .{ .type = .Bishop, .color = color },
-            'Q' => .{ .type = .Queen, .color = color },
-            'K' => .{ .type = .King, .color = color },
+            'P' => .Pawn,
+            'R' => .Rook,
+            'H' => .Knight,
+            'B' => .Bishop,
+            'Q' => .Queen,
+            'K' => .King,
             '.' => null,
+            else => {
+                std.debug.print("Unreachable character: {}\n", .{c});
+                unreachable;
+            },
+        };
+    }
+    pub fn colorFrom(c: u8) Color {
+        return switch (c) {
+            'W' => .White,
+            'B' => .Black,
             else => {
                 std.debug.print("Unreachable character: {}\n", .{c});
                 unreachable;
@@ -48,66 +58,86 @@ pub const Board = struct {
     pub fn at(self: *Self, x: usize, y: usize) ?*Piece {
         return self.pieces[y * 8 + x];
     }
-    pub fn set(self: *Self, piece: *Piece, x: usize, y: usize) void {
+    pub fn set(self: *Self, piece: ?*Piece, x: usize, y: usize) void {
         self.pieces[y * 8 + x] = piece;
-    }
-};
-
-pub const Player = struct {
-    const Self = @This();
-    counter: usize = 0,
-    pieces: [16]*Piece = undefined,
-
-    pub fn addPiece(self: *Self, piece: *Piece) void {
-        self.pieces[self.counter] = piece;
-        self.counter += 1;
-    }
-
-    pub fn destroyPiece(self: *Self, allocator: std.mem.Allocator, index: usize) void {
-        allocator.destroy(self.pieces[index]);
     }
 };
 
 pub const Match = struct {
     const Self = @This();
-    white: Player = .{},
-    black: Player = .{},
+    white: ArrayList(*Piece),
+    black: ArrayList(*Piece),
     board: Board = .{ .pieces = .{null} ** 64 },
     white_turn: bool = true,
+    allocator: std.mem.Allocator,
 
-    pub fn init(self: *Self, allocator: std.mem.Allocator) !void {
-        try self.initBoard(allocator);
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return .{
+            .white = ArrayList(*Piece).init(allocator),
+            .black = ArrayList(*Piece).init(allocator),
+            .allocator = allocator,
+        };
     }
 
-    fn initBoard(self: *Self, allocator: std.mem.Allocator) !void {
+    pub fn default(self: *Self) !void {
+        try self.initBoard();
+    }
+
+    pub fn fromStr(self: *Self, board: []const u8) !void {
+        var i: usize = 0;
+        var color = false;
+        var read_piece_type: ?Piece.Type = null;
+        for (board) |c| {
+            if (c == '\n' or c == ',') {
+                continue;
+            }
+
+            if (color) {
+                if (read_piece_type) |piece_type| {
+                    const piece_color: Piece.Color = Piece.colorFrom(c);
+                    try self.initPeace(i % 8, i / 8, piece_type, piece_color);
+                }
+                i += 1;
+            } else {
+                read_piece_type = Piece.typeFrom(c);
+            }
+            color = !color;
+        }
+    }
+
+    fn initBoard(self: *Self) !void {
         for (0..8) |x| {
-            try initPeace(self, x, 1, .Pawn, .Black, allocator);
-            try initPeace(self, x, 6, .Pawn, .White, allocator);
+            try self.initPeace(x, 1, .Pawn, .Black);
+            try self.initPeace(x, 6, .Pawn, .White);
         }
         const layout = [8]Piece.Type{ .Rook, .Knight, .Bishop, .Queen, .King, .Bishop, .Knight, .Rook };
         for (0.., layout) |x, piece_type| {
-            try initPeace(self, x, 0, piece_type, .Black, allocator);
-            try initPeace(self, x, 7, piece_type, .White, allocator);
+            try self.initPeace(x, 0, piece_type, .Black);
+            try self.initPeace(x, 7, piece_type, .White);
         }
     }
 
-    fn initPeace(self: *Self, x: usize, y: usize, piece_type: Piece.Type, color: Piece.Color, allocator: std.mem.Allocator) !void {
-        const piece: *Piece = try allocator.create(Piece);
+    fn initPeace(self: *Self, x: usize, y: usize, piece_type: Piece.Type, color: Piece.Color) !void {
+        const piece: *Piece = try self.allocator.create(Piece);
         piece.type = piece_type;
         piece.color = color;
 
         switch (color) {
-            .White => self.white.addPiece(piece),
-            .Black => self.black.addPiece(piece),
+            .White => try self.white.append(piece),
+            .Black => try self.black.append(piece),
         }
         self.board.set(piece, x, y);
     }
 
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
-        for (0..16) |i| {
-            self.white.destroyPiece(allocator, i);
-            self.black.destroyPiece(allocator, i);
+    pub fn deinit(self: *Self) void {
+        for (self.white.items) |piece| {
+            self.allocator.destroy(piece);
         }
+        for (self.black.items) |piece| {
+            self.allocator.destroy(piece);
+        }
+        self.white.deinit();
+        self.black.deinit();
     }
 
     pub fn print(self: *Match) void {
