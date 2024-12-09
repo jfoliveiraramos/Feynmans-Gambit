@@ -16,8 +16,8 @@ pub fn main() !void {
 
     var match = Match.init(allocator);
     try match.fromStr(
-        \\PWPWPWPWPWPWPWPW
-        \\RWHWBWQWKWBWHWKW
+        \\................
+        \\PBPBPBPBPBPBPBPB
         \\................
         \\................
         \\................
@@ -45,9 +45,9 @@ pub fn main() !void {
             });
         }
 
-        moves.executeMove(&match.board, move_list.items[4]);
+        moves.executeMove(&match.board, move_list.items[0]);
         match.print();
-        moves.reverseMove(&match.board, move_list.items[4]);
+        moves.reverseMove(&match.board, move_list.items[0]);
         match.print();
         // const stdin = std.io.getStdIn().reader();
         //

@@ -31,6 +31,9 @@ pub fn executeMove(board: *Board, move: Move) void {
 pub fn reverseMove(board: *Board, move: Move) void {
     board.set(move.piece, move.org.x, move.org.y);
     board.set(move.captured, move.dest.x, move.dest.y);
+    if (move.promotion) {
+        move.piece.type = .Pawn;
+    }
 }
 
 pub fn getMoves(board: *Board, pos: Pos) ?ArrayList(Move) {
@@ -54,38 +57,55 @@ fn hasPawnMoved(piece: *Piece, y: usize) bool {
 fn getPawnMoves(board: *Board, pos: Pos, piece: *Piece) ArrayList(Move) {
     var moves = ArrayList(Move).init(std.heap.page_allocator);
 
-    const limit: usize = if (hasPawnMoved(piece, pos.y)) 2 else 3;
-    for (1..limit) |i| {
-        const spot = board.at(pos.x, pos.y + i);
-        if (spot) |target| {
-            if (!piece.isSameColor(target)) {
+    const vdir: i8 = if (piece.color == .White) 1 else -1;
+
+    const range: []const i8 = if (hasPawnMoved(piece, pos.y)) &.{
+        1 * vdir,
+    } else &.{
+        1 * vdir,
+        2 * vdir,
+    };
+    for (range) |i| {
+        const new_y = @as(i8, @intCast(pos.y)) + i;
+        if (new_y < 0 or new_y >= 8) break;
+        const uy: usize = @intCast(new_y);
+        if (board.at(pos.x, uy) == null) {
+            moves.append(.{
+                .piece = piece,
+                .type = .Quiet,
+                .promotion = uy == 0 or uy == 7,
+                .org = pos,
+                .dest = .{
+                    .x = pos.x,
+                    .y = uy,
+                },
+            }) catch |err| {
+                std.debug.print("Error: {}", .{err});
+            };
+        }
+    }
+
+    for ([2]i8{ -1, 1 }) |hdir| {
+        const new_x: i8 = @as(i8, @intCast(pos.x)) + hdir;
+        const new_y: i8 = @as(i8, @intCast(pos.y)) + vdir;
+        if (new_y < 0 or new_x < 0 or new_x >= 8 or new_y >= 8) break;
+        const ux: usize = @intCast(new_x);
+        const uy: usize = @intCast(new_y);
+        if (board.at(ux, uy)) |target| {
+            if (target.color != piece.color) {
                 moves.append(.{
                     .piece = piece,
-                    .captured = target,
-                    .type = .Capture,
+                    .type = .Quiet,
                     .promotion = pos.y == 0 or pos.y == 7,
                     .org = pos,
                     .dest = .{
-                        .x = pos.x,
-                        .y = pos.y + i,
+                        .x = ux,
+                        .y = uy,
                     },
                 }) catch |err| {
                     std.debug.print("Error: {}", .{err});
                 };
             }
-        } else {
-            moves.append(.{
-                .piece = piece,
-                .type = .Quiet,
-                .promotion = pos.y == 0 or pos.y == 7,
-                .org = pos,
-                .dest = .{
-                    .x = pos.x,
-                    .y = pos.y + i,
-                },
-            }) catch |err| {
-                std.debug.print("Error: {}", .{err});
-            };
         }
     }
     return moves;
