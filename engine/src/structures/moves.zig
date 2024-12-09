@@ -22,6 +22,10 @@ pub const Move = struct {
 pub fn executeMove(board: *Board, move: Move) void {
     board.set(null, move.org.x, move.org.y);
     board.set(move.piece, move.dest.x, move.dest.y);
+
+    if (move.promotion) {
+        move.piece.type = .Queen;
+    }
 }
 
 pub fn reverseMove(board: *Board, move: Move) void {
@@ -59,7 +63,7 @@ fn getPawnMoves(board: *Board, pos: Pos, piece: *Piece) ArrayList(Move) {
                     .piece = piece,
                     .captured = target,
                     .type = .Capture,
-                    .promotion = false,
+                    .promotion = pos.y == 0 or pos.y == 7,
                     .org = pos,
                     .dest = .{
                         .x = pos.x,
@@ -73,7 +77,7 @@ fn getPawnMoves(board: *Board, pos: Pos, piece: *Piece) ArrayList(Move) {
             moves.append(.{
                 .piece = piece,
                 .type = .Quiet,
-                .promotion = false,
+                .promotion = pos.y == 0 or pos.y == 7,
                 .org = pos,
                 .dest = .{
                     .x = pos.x,
