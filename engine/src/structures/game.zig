@@ -1,4 +1,6 @@
 const std = @import("std");
+const moves = @import("moves.zig");
+const Move = moves.Move;
 const ArrayList = std.ArrayList;
 
 pub const Pos = struct { x: usize, y: usize };
@@ -6,9 +8,16 @@ pub const Pos = struct { x: usize, y: usize };
 pub const Piece = struct {
     const Self = @This();
     pub const Type = enum { Pawn, Bishop, Knight, Rook, Queen, King };
-    pub const Color = enum { White, Black };
+    pub const Color = enum {
+        White,
+        Black,
+        pub fn toString(self: Color) u8 {
+            return if (self == .White) 'W' else 'B';
+        }
+    };
     type: Type,
     color: Color,
+    alive: bool = true,
 
     pub fn toString(self: Piece) u8 {
         return switch (self.type) {
@@ -65,16 +74,15 @@ pub const Board = struct {
 
 pub const Match = struct {
     const Self = @This();
-    white: ArrayList(*Piece),
-    black: ArrayList(*Piece),
+    pieces: ArrayList(*Piece),
     board: Board = .{ .pieces = .{null} ** 64 },
-    white_turn: bool = true,
+    turn: Piece.Color = .White,
+    last_double_pawn: ?*Piece = null,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .white = ArrayList(*Piece).init(allocator),
-            .black = ArrayList(*Piece).init(allocator),
+            .pieces = ArrayList(*Piece).init(allocator),
             .allocator = allocator,
         };
     }
@@ -121,46 +129,52 @@ pub const Match = struct {
         const piece: *Piece = try self.allocator.create(Piece);
         piece.type = piece_type;
         piece.color = color;
-
-        switch (color) {
-            .White => try self.white.append(piece),
-            .Black => try self.black.append(piece),
-        }
+        try self.pieces.append(piece);
         self.board.set(piece, x, y);
     }
 
     pub fn deinit(self: *Self) void {
-        for (self.white.items) |piece| {
+        for (self.pieces.items) |piece| {
             self.allocator.destroy(piece);
         }
-        for (self.black.items) |piece| {
-            self.allocator.destroy(piece);
-        }
-        self.white.deinit();
-        self.black.deinit();
+        self.pieces.deinit();
     }
 
     pub fn print(self: *Match) void {
         for (0..8) |row| {
-            var rowBuf: [8]u8 = .{0} ** 8;
+            var rowBuf: [16]u8 = .{0} ** 16;
             for (0..8) |col| {
                 const piece = self.board.at(col, row);
                 if (piece == null) {
-                    rowBuf[col] = '.'; // Empty square
+                    rowBuf[col * 2] = '.'; // Empty square
+                    rowBuf[col * 2 + 1] = '.'; // Empty square
                 } else {
-                    rowBuf[col] = piece.?.toString();
+                    rowBuf[col * 2] = piece.?.toString();
+                    rowBuf[col * 2 + 1] = piece.?.color.toString();
                 }
             }
             std.debug.print("{s}\n", .{rowBuf});
         }
     }
 
+    pub fn getMoves(self: *Match, pos: Pos) ?ArrayList(Move) {
+        return moves.getMoves(self, pos);
+    }
+
+    pub fn executeMove(self: *Match, move: Move) void {
+        moves.executeMove(self, move);
+    }
+
+    pub fn undoMove(self: *Match, move: Move) void {
+        moves.undoMove(self, move);
+    }
+
     pub fn nextTurn(self: *Match) void {
-        self.white_turn = !self.white_turn;
+        self.turn = if (self.turn == .White) .Black else .White;
     }
 
     pub fn printTurn(self: *Match) void {
-        if (self.white_turn) {
+        if (self.turn == .White) {
             std.debug.print("It is Player 1's turn!\n", .{});
         } else {
             std.debug.print("It is Player 2's turn!\n", .{});
