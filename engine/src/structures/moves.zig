@@ -7,7 +7,7 @@ const Piece = game.Piece;
 const Pos = game.Pos;
 
 pub const Move = struct {
-    type: enum { Quiet, Capture, Castling },
+    type: enum { Quiet, Capture, Castling, EnPassant },
     piece: *Piece,
     promotion: bool = false,
     org: Pos,
@@ -37,6 +37,10 @@ pub fn executeMove(match: *Match, move: Move) void {
         match.double_pawns.append(move.piece) catch |err| {
             std.debug.print("Error: {}", .{err});
         };
+    } else {
+        match.double_pawns.append(null) catch |err| {
+            std.debug.print("Error: {}", .{err});
+        };
     }
 }
 
@@ -54,9 +58,7 @@ pub fn undoMove(match: *Match, move: Move) void {
         move.piece.type = .Pawn;
     }
 
-    if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
-        _ = match.double_pawns.pop();
-    }
+    _ = match.double_pawns.pop();
 }
 
 pub fn getMoves(match: *Match, pos: Pos) ?ArrayList(Move) {
@@ -80,7 +82,7 @@ fn hasPawnMoved(piece: *Piece, y: usize) bool {
 fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
     var moves = ArrayList(Move).init(std.heap.page_allocator);
 
-    const vdir: i8 = if (piece.color == .White) 1 else -1;
+    const vdir: i8 = if (piece.color == .White) -1 else 1;
 
     const range: []const i8 = if (hasPawnMoved(piece, pos.y)) &.{
         1 * vdir,
@@ -111,7 +113,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
     for ([2]i8{ -1, 1 }) |hdir| {
         const new_x: i8 = @as(i8, @intCast(pos.x)) + hdir;
         const new_y: i8 = @as(i8, @intCast(pos.y)) + vdir;
-        if (new_y < 0 or new_x < 0 or new_x >= 8 or new_y >= 8) break;
+        if (new_y < 0 or new_x < 0 or new_x >= 8 or new_y >= 8) continue;
         const ux: usize = @intCast(new_x);
         const uy: usize = @intCast(new_y);
         if (match.board.at(ux, uy)) |target| {
@@ -135,6 +137,31 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
                 }) catch |err| {
                     std.debug.print("Error: {}", .{err});
                 };
+            }
+        }
+        if (match.double_pawns.getLast()) |double| {
+            if (match.board.at(ux, pos.y)) |target| {
+                if (target == double and target.color != piece.color) {
+                    moves.append(.{
+                        .piece = piece,
+                        .type = .EnPassant,
+                        .capture = .{
+                            .piece = target,
+                            .pos = .{
+                                .x = ux,
+                                .y = pos.y,
+                            },
+                        },
+                        .promotion = uy == 0 or uy == 7,
+                        .org = pos,
+                        .dest = .{
+                            .x = ux,
+                            .y = uy,
+                        },
+                    }) catch |err| {
+                        std.debug.print("Error: {}", .{err});
+                    };
+                }
             }
         }
     }

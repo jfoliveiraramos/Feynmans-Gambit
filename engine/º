@@ -81,7 +81,7 @@ pub const Match = struct {
     double_pawns: ArrayList(?*Piece),
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        var double_pawns: ArrayList(?*Piece) = ArrayList(?*Piece).init(allocator);
+        const double_pawns = ArrayList(?*Piece).init(allocator);
         double_pawns.append(null) catch |err| {
             std.log.debug("Error: {}", .{err});
         };
@@ -143,7 +143,6 @@ pub const Match = struct {
             self.allocator.destroy(piece);
         }
         self.pieces.deinit();
-        self.double_pawns.deinit();
     }
 
     pub fn print(self: *Match) void {
