@@ -33,6 +33,11 @@ pub fn executeMove(match: *Match, move: Move) void {
     if (move.promotion) {
         move.piece.type = .Queen;
     }
+    if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
+        match.double_pawns.append(move.piece) catch |err| {
+            std.debug.print("Error: {}", .{err});
+        };
+    }
 }
 
 pub fn undoMove(match: *Match, move: Move) void {
@@ -47,6 +52,10 @@ pub fn undoMove(match: *Match, move: Move) void {
 
     if (move.promotion) {
         move.piece.type = .Pawn;
+    }
+
+    if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
+        _ = match.double_pawns.pop();
     }
 }
 

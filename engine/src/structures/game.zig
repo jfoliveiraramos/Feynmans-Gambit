@@ -77,13 +77,14 @@ pub const Match = struct {
     pieces: ArrayList(*Piece),
     board: Board = .{ .pieces = .{null} ** 64 },
     turn: Piece.Color = .White,
-    last_double_pawn: ?*Piece = null,
     allocator: std.mem.Allocator,
+    double_pawns: ArrayList(*Piece),
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .pieces = ArrayList(*Piece).init(allocator),
             .allocator = allocator,
+            .double_pawns = ArrayList(*Piece).init(allocator),
         };
     }
 
