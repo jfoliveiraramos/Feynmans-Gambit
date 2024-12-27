@@ -1,2 +1,2 @@
-pub const game = @import("structures/game.zig");
-pub const moves = @import("structures/moves.zig");
+pub const game = @import("engine/game.zig");
+pub const movement = @import("engine/movement.zig");
