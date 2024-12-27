@@ -1,10 +1,9 @@
 const std = @import("std");
 const engine = @import("engine");
 const game = engine.game;
-const moves = engine.moves;
+const movement = engine.movement;
 const ArrayList = std.ArrayList;
 const Match = game.Match;
-const Move = moves.Move;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -14,28 +13,53 @@ pub fn main() !void {
         if (deinit_status == .leak) @panic(" FAIL");
     }
 
-    var match: Match = .{};
-    try match.init(allocator);
-    defer match.deinit(allocator);
+    var match = Match.init(allocator);
+    // try match.fromStr(
+    //     \\....PW..QW......
+    //     \\PBPBPBPBPBPBPBPB
+    //     \\................
+    //     \\................
+    //     \\PB..............
+    //     \\................
+    //     \\PWPWPWPWPWPWPWPW
+    //     \\RWNWBWQWKW....RW
+    // );
+    try match.fromStr(
+        \\................
+        \\................
+        \\................
+        \\................
+        \\................
+        \\......RB..QB....
+        \\................
+        \\........KW......
+    );
+    defer match.deinit();
 
     match.print();
 
-    const movements = moves.getMoves(
-        &match.board,
-        .{ .x = 3, .y = 3 },
+    const movements = movement.getPlayableMoves(
+        &match,
+        .{ .x = 4, .y = 7 },
     );
+    defer movements.deinit();
 
-    if (movements) |move_list| {
-        std.debug.print("Number of moves: {}\n", .{move_list.items.len});
-        for (move_list.items) |move| {
-            std.debug.print("{s}Move: {},{}\n", .{
-                (if (move.type == .Capture) "Capture " else ""),
-                move.dest.x,
-                move.dest.y,
-            });
-        }
-        move_list.deinit();
-    } else {
-        std.debug.print("No moves\n", .{});
+    for (movements.items, 0..) |move, index| {
+        std.debug.print("{}. ", .{index});
+        move.print();
     }
+
+    if (movement.checkmate(&match, match.turn)) {
+        std.debug.print("Checkmate\n", .{});
+    } else if (movement.stalemate(&match, match.turn)) {
+        std.debug.print("Stalemate\n", .{});
+    } else {
+        std.debug.print("Nothing\n", .{});
+    }
+
+    // const move = movements.items[5];
+    // movement.executeMove(&match, move);
+    // match.print();
+    // movement.undoMove(&match, move);
+    // match.print();
 }
