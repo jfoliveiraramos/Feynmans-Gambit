@@ -351,13 +351,10 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
                     .org = .{ .x = pos.x, .y = pos.y },
                     .piece = king,
                 };
-                executeMove(match, move);
-                if (inCheck(match, king.color)) {
+                if (!validMove(match, move)) {
                     can_castle = false;
-                    undoMove(match, move);
                     break;
                 }
-                undoMove(match, move);
             }
 
             if (can_castle) {
@@ -379,17 +376,23 @@ fn filterMoves(match: *Match, moves: ArrayList(Move)) ArrayList(Move) {
     var filtered_moves = ArrayList(Move).init(std.heap.page_allocator);
 
     for (moves.items) |move| {
-        executeMove(match, move);
-        if (!inCheck(match, match.turn)) {
+        if (validMove(match, move)) {
             filtered_moves.append(move) catch |err| {
                 std.debug.print("Error: {}", .{err});
             };
         }
-        undoMove(match, move);
     }
     return filtered_moves;
 }
-fn inCheck(match: *Match, color: Color) bool {
+
+fn validMove(match: *Match, move: Move) bool {
+    executeMove(match, move);
+    const valid = !check(match, match.turn);
+    undoMove(match, move);
+    return valid;
+}
+
+fn check(match: *Match, color: Color) bool {
     for (match.board.pieces, 0..) |spot, i| {
         if (spot) |piece| {
             if (piece.color != color) {
@@ -407,4 +410,29 @@ fn inCheck(match: *Match, color: Color) bool {
         }
     }
     return false;
+}
+
+fn cantPlay(match: *Match, color: Color) bool {
+    for (match.board.pieces, 0..) |spot, i| {
+        if (spot) |piece| {
+            if (piece.color == color) {
+                const moves = getMoves(match, .{
+                    .x = i % 8,
+                    .y = i / 8,
+                });
+
+                for (moves.items) |move| {
+                    if (validMove(match, move)) return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+pub fn checkmate(match: *Match, color: Color) bool {
+    return check(match, match.turn) and cantPlay(match, color);
+}
+pub fn stalemate(match: *Match, color: Color) bool {
+    return !check(match, match.turn) and cantPlay(match, color);
 }

@@ -29,10 +29,10 @@ pub fn main() !void {
         \\................
         \\................
         \\................
-        \\..............QB
         \\................
+        \\......RB..QB....
         \\................
-        \\RW......KW....RW
+        \\........KW......
     );
     defer match.deinit();
 
@@ -40,7 +40,7 @@ pub fn main() !void {
 
     const movements = movement.getPlayableMoves(
         &match,
-        .{ .x = 7, .y = 7 },
+        .{ .x = 4, .y = 7 },
     );
     defer movements.deinit();
 
@@ -49,9 +49,17 @@ pub fn main() !void {
         move.print();
     }
 
-    const move = movements.items[0];
-    movement.executeMove(&match, move);
-    match.print();
-    movement.undoMove(&match, move);
-    match.print();
+    if (movement.checkmate(&match, match.turn)) {
+        std.debug.print("Checkmate\n", .{});
+    } else if (movement.stalemate(&match, match.turn)) {
+        std.debug.print("Stalemate\n", .{});
+    } else {
+        std.debug.print("Nothing\n", .{});
+    }
+
+    // const move = movements.items[5];
+    // movement.executeMove(&match, move);
+    // match.print();
+    // movement.undoMove(&match, move);
+    // match.print();
 }
