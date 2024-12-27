@@ -25,8 +25,8 @@ pub fn main() !void {
     //     \\RWNWBWQWKW....RW
     // );
     try match.fromStr(
-        \\KWRB............
-        \\................
+        \\KW..............
+        \\..NW..RB........
         \\................
         \\................
         \\................
@@ -41,22 +41,17 @@ pub fn main() !void {
 
     const movements = movement.getPlayableMoves(
         &match,
-        .{ .x = 0, .y = 0 },
+        .{ .x = 1, .y = 1 },
     );
     defer movements.deinit();
 
     for (movements.items, 1..) |move, index| {
-        std.debug.print("{}. {s}{s}Move: {},{}\n", .{
-            index,
-            (if (move.promotion) "Promotion " else ""),
-            (if (move.type == .Capture) "Capture " else if (move.type == .EnPassant) "EnPassant " else if (move.type == .Castling) "Castling " else ""),
-            move.dest.x,
-            move.dest.y,
-        });
+        std.debug.print("{}. ", .{index});
+        move.print();
     }
 
-    movement.executeMove(&match, movements.items[2]);
+    movement.executeMove(&match, movements.items[1]);
     match.print();
-    movement.undoMove(&match, movements.items[2]);
+    movement.undoMove(&match, movements.items[1]);
     match.print();
 }

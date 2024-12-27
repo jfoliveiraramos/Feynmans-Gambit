@@ -19,6 +19,16 @@ pub const Move = struct {
     pub fn eq(self: Move, other: Move) bool {
         return self.dest.x == other.dest.x and self.dest.y == other.dest.y and self.promotion == other.promotion and self.type == other.type;
     }
+
+    pub fn print(self: Move) void {
+        const move_type = switch (self.type) {
+            .Quiet => "Move",
+            .Capture => "Capture",
+            .Castling => "Castling",
+            .EnPassant => "EnPassant",
+        };
+        std.debug.print("{s}: ({},{})\n", .{ move_type, self.dest.x, self.dest.y });
+    }
 };
 
 pub fn executeMove(match: *Match, move: Move) void {
@@ -353,8 +363,7 @@ fn filterMoves(match: *Match, moves: ArrayList(Move)) ArrayList(Move) {
     return filtered_moves;
 }
 fn inCheck(match: *Match, color: Color) bool {
-    const i: u8 = 0;
-    for (match.board.pieces) |spot| {
+    for (match.board.pieces, 0..) |spot, i| {
         if (spot) |piece| {
             if (piece.color != color) {
                 const moves = getMoves(match, .{
