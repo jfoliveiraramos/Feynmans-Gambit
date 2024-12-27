@@ -1,6 +1,4 @@
 const std = @import("std");
-const moves = @import("moves.zig");
-const Move = moves.Move;
 const ArrayList = std.ArrayList;
 
 pub const Pos = struct { x: usize, y: usize };
@@ -18,6 +16,7 @@ pub const Piece = struct {
     type: Type,
     color: Color,
     alive: bool = true,
+    has_moved: bool = false,
 
     pub fn toString(self: Piece) u8 {
         return switch (self.type) {
@@ -161,18 +160,6 @@ pub const Match = struct {
             }
             std.debug.print("{s}\n", .{rowBuf});
         }
-    }
-
-    pub fn getMoves(self: *Match, pos: Pos) ?ArrayList(Move) {
-        return moves.getMoves(self, pos);
-    }
-
-    pub fn executeMove(self: *Match, move: Move) void {
-        moves.executeMove(self, move);
-    }
-
-    pub fn undoMove(self: *Match, move: Move) void {
-        moves.undoMove(self, move);
     }
 
     pub fn nextTurn(self: *Match) void {

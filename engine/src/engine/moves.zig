@@ -28,6 +28,11 @@ pub fn executeMove(match: *Match, move: Move) void {
         match.board.set(null, capture.pos.x, capture.pos.y);
     }
 
+    if (move.type == .Castling) {
+        const rook = match.board.at(move.dest.x, move.dest.y);
+        const x: u8 = if (move.dest.x == 7) 6 else 1;
+        match.board.set(rook, x, move.dest.y);
+    }
     match.board.set(move.piece, move.dest.x, move.dest.y);
 
     if (move.promotion) {
@@ -42,12 +47,20 @@ pub fn executeMove(match: *Match, move: Move) void {
             std.debug.print("Error: {}", .{err});
         };
     }
+    move.piece.has_moved = true;
 }
 
 pub fn undoMove(match: *Match, move: Move) void {
     match.board.set(move.piece, move.org.x, move.org.y);
 
     match.board.set(null, move.dest.x, move.dest.y);
+
+    if (move.type == .Castling) {
+        const x: u8 = if (move.dest.x == 7) 6 else 1;
+        const rook = match.board.at(x, move.dest.y);
+        match.board.set(rook, move.dest.x, move.dest.y);
+        match.board.set(null, x, move.dest.y);
+    }
 
     if (move.capture) |capture| {
         capture.piece.alive = true;
@@ -59,6 +72,8 @@ pub fn undoMove(match: *Match, move: Move) void {
     }
 
     _ = match.double_pawns.pop();
+
+    move.piece.has_moved = false;
 }
 
 pub fn getMoves(match: *Match, pos: Pos) ?ArrayList(Move) {
@@ -226,7 +241,7 @@ fn getQueenMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
 }
 
 fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    return getMovesInDirection(
+    var moves = getMovesInDirection(
         match,
         pos,
         piece,
@@ -242,6 +257,12 @@ fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
         },
         true,
     );
+
+    moves.appendSlice(getCastling(match, pos, piece).items) catch |err| {
+        std.debug.print("Error: {}", .{err});
+    };
+
+    return moves;
 }
 
 fn getMovesInDirection(match: *Match, pos: Pos, piece: *Piece, directions: []const [2]i8, limited: bool) ArrayList(Move) {
@@ -284,6 +305,28 @@ fn getMovesInDirection(match: *Match, pos: Pos, piece: *Piece, directions: []con
                 };
             }
             if (limited) break;
+        }
+    }
+    return moves;
+}
+
+fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
+    var moves = ArrayList(Move).init(std.heap.page_allocator);
+
+    if (king.has_moved) return moves;
+
+    for ([2]u8{ 0, 7 }) |x| {
+        if (match.board.at(x, pos.y)) |rook| {
+            if (rook.has_moved) continue;
+
+            moves.append(.{
+                .type = .Castling,
+                .dest = .{ .x = x, .y = pos.y },
+                .org = pos,
+                .piece = king,
+            }) catch |err| {
+                std.debug.print("Error: {}", .{err});
+            };
         }
     }
     return moves;

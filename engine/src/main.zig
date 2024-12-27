@@ -22,14 +22,15 @@ pub fn main() !void {
         \\PB..............
         \\................
         \\PWPWPWPWPWPWPWPW
-        \\RWNWBWQWKWBWNWKW
+        \\RWNWBWQWKW....RW
     );
     defer match.deinit();
 
     match.print();
 
-    var movements = match.getMoves(
-        .{ .x = 1, .y = 6 },
+    const movements = moves.getMoves(
+        &match,
+        .{ .x = 4, .y = 7 },
     );
 
     if (movements) |move_list| {
@@ -38,49 +39,17 @@ pub fn main() !void {
             std.debug.print("{}. {s}{s}Move: {},{}\n", .{
                 index,
                 (if (move.promotion) "Promotion " else ""),
-                (if (move.type == .Capture) "Capture " else if (move.type == .EnPassant) "EnPassant " else ""),
+                (if (move.type == .Capture) "Capture " else if (move.type == .EnPassant) "EnPassant " else if (move.type == .Castling) "Caslting " else ""),
                 move.dest.x,
                 move.dest.y,
             });
         }
 
-        match.executeMove(move_list.items[1]);
+        moves.executeMove(&match, move_list.items[2]);
         match.print();
-        // match.undoMove(move_list.items[1]);
-        // match.print();
+        moves.undoMove(&match, move_list.items[2]);
+        match.print();
         move_list.deinit();
-    } else {
-        std.debug.print("No moves\n", .{});
-    }
-
-    for (match.double_pawns.items) |dpawn| {
-        if (dpawn) |pawn| {
-            std.log.debug("There's pawn of color: {c}", .{pawn.color.toString()});
-        } else {
-            std.log.debug("No Pawn\n", .{});
-        }
-    }
-    movements = match.getMoves(
-        .{ .x = 0, .y = 4 },
-    );
-
-    if (movements) |move_list| {
-        std.debug.print("Number of moves: {}\n", .{move_list.items.len});
-        for (move_list.items, 0..) |move, index| {
-            std.debug.print("{}. {s}{s}Move: {},{}\n", .{
-                index,
-                (if (move.promotion) "Promotion " else ""),
-                (if (move.type == .Capture) "Capture " else if (move.type == .EnPassant) "EnPassant " else ""),
-                move.dest.x,
-                move.dest.y,
-            });
-        }
-
-        match.executeMove(move_list.items[1]);
-        match.print();
-        match.undoMove(move_list.items[1]);
-        match.print();
-        // move_list.deinit();
     } else {
         std.debug.print("No moves\n", .{});
     }
