@@ -330,19 +330,46 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
 
     if (king.has_moved) return moves;
 
-    for ([2]u8{ 0, 7 }) |x| {
+    for ([2]usize{ 0, 7 }) |x| {
         if (match.board.at(x, pos.y)) |rook| {
             if (rook.type != .Rook) continue;
-            if (rook.has_moved) continue;
+            if (rook.color != king.color or rook.has_moved) continue;
 
-            moves.append(.{
-                .type = .Castling,
-                .dest = .{ .x = x, .y = pos.y },
-                .org = pos,
-                .piece = king,
-            }) catch |err| {
-                std.debug.print("Error: {}", .{err});
-            };
+            const start: usize = (if (x < pos.x) x else pos.x) + 1;
+            const end: usize = (if (x < pos.x) pos.x else x);
+
+            var can_castle = true;
+            for (start..end) |curr| {
+                if (match.board.at(curr, pos.y)) |_| {
+                    can_castle = false;
+                    break;
+                }
+
+                const move: Move = .{
+                    .type = .Quiet,
+                    .dest = .{ .x = curr, .y = pos.y },
+                    .org = .{ .x = pos.x, .y = pos.y },
+                    .piece = king,
+                };
+                executeMove(match, move);
+                if (inCheck(match, king.color)) {
+                    can_castle = false;
+                    undoMove(match, move);
+                    break;
+                }
+                undoMove(match, move);
+            }
+
+            if (can_castle) {
+                moves.append(.{
+                    .type = .Castling,
+                    .dest = .{ .x = x, .y = pos.y },
+                    .org = pos,
+                    .piece = king,
+                }) catch |err| {
+                    std.debug.print("Error: {}", .{err});
+                };
+            }
         }
     }
     return moves;

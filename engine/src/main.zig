@@ -25,15 +25,14 @@ pub fn main() !void {
     //     \\RWNWBWQWKW....RW
     // );
     try match.fromStr(
-        \\KW..............
-        \\..NW..RB........
         \\................
         \\................
         \\................
         \\................
+        \\..............QB
         \\................
         \\................
-        \\................
+        \\RW......KW....RW
     );
     defer match.deinit();
 
@@ -41,17 +40,18 @@ pub fn main() !void {
 
     const movements = movement.getPlayableMoves(
         &match,
-        .{ .x = 1, .y = 1 },
+        .{ .x = 7, .y = 7 },
     );
     defer movements.deinit();
 
-    for (movements.items, 1..) |move, index| {
+    for (movements.items, 0..) |move, index| {
         std.debug.print("{}. ", .{index});
         move.print();
     }
 
-    movement.executeMove(&match, movements.items[1]);
+    const move = movements.items[0];
+    movement.executeMove(&match, move);
     match.print();
-    movement.undoMove(&match, movements.items[1]);
+    movement.undoMove(&match, move);
     match.print();
 }
