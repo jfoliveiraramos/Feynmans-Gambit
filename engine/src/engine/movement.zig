@@ -4,6 +4,7 @@ const game = @import("game.zig");
 const ArrayList = std.ArrayList;
 const Match = game.Match;
 const Piece = game.Piece;
+const Color = Piece.Color;
 const Pos = game.Pos;
 
 pub const Move = struct {
@@ -76,7 +77,7 @@ pub fn undoMove(match: *Match, move: Move) void {
     move.piece.has_moved = false;
 }
 
-pub fn getMoves(match: *Match, pos: Pos) ?ArrayList(Move) {
+fn getMoves(match: *Match, pos: Pos) ArrayList(Move) {
     if (match.board.at(pos.x, pos.y)) |piece| {
         return switch (piece.type) {
             .Pawn => getPawnMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
@@ -87,7 +88,11 @@ pub fn getMoves(match: *Match, pos: Pos) ?ArrayList(Move) {
             .King => getKingMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
         };
     }
-    return null;
+    return ArrayList(Move).init(std.heap.page_allocator);
+}
+
+pub fn getPlayableMoves(match: *Match, pos: Pos) ArrayList(Move) {
+    return filterMoves(match, getMoves(match, pos));
 }
 
 fn hasPawnMoved(piece: *Piece, y: usize) bool {
@@ -317,6 +322,7 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
 
     for ([2]u8{ 0, 7 }) |x| {
         if (match.board.at(x, pos.y)) |rook| {
+            if (rook.type != .Rook) continue;
             if (rook.has_moved) continue;
 
             moves.append(.{
@@ -330,4 +336,39 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
         }
     }
     return moves;
+}
+
+fn filterMoves(match: *Match, moves: ArrayList(Move)) ArrayList(Move) {
+    var filtered_moves = ArrayList(Move).init(std.heap.page_allocator);
+
+    for (moves.items) |move| {
+        executeMove(match, move);
+        if (!inCheck(match, match.turn)) {
+            filtered_moves.append(move) catch |err| {
+                std.debug.print("Error: {}", .{err});
+            };
+        }
+        undoMove(match, move);
+    }
+    return filtered_moves;
+}
+fn inCheck(match: *Match, color: Color) bool {
+    const i: u8 = 0;
+    for (match.board.pieces) |spot| {
+        if (spot) |piece| {
+            if (piece.color != color) {
+                const moves = getMoves(match, .{
+                    .x = i % 8,
+                    .y = i / 8,
+                });
+
+                for (moves.items) |move| {
+                    if (move.capture) |capture| {
+                        if (capture.piece.type == .King) return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }

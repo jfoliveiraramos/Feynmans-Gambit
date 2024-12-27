@@ -1,5 +1,5 @@
 const std = @import("std");
-const moves = @import("engine").moves;
+const moves = @import("engine").movement;
 const game = @import("engine").game;
 const Move = moves.Move;
 const ArrayList = std.ArrayList;

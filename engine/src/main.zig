@@ -1,7 +1,7 @@
 const std = @import("std");
 const engine = @import("engine");
 const game = engine.game;
-const moves = engine.moves;
+const movement = engine.movement;
 const ArrayList = std.ArrayList;
 const Match = game.Match;
 
@@ -14,43 +14,49 @@ pub fn main() !void {
     }
 
     var match = Match.init(allocator);
+    // try match.fromStr(
+    //     \\....PW..QW......
+    //     \\PBPBPBPBPBPBPBPB
+    //     \\................
+    //     \\................
+    //     \\PB..............
+    //     \\................
+    //     \\PWPWPWPWPWPWPWPW
+    //     \\RWNWBWQWKW....RW
+    // );
     try match.fromStr(
-        \\....PW..QW......
-        \\PBPBPBPBPBPBPBPB
+        \\KWRB............
         \\................
         \\................
-        \\PB..............
         \\................
-        \\PWPWPWPWPWPWPWPW
-        \\RWNWBWQWKW....RW
+        \\................
+        \\................
+        \\................
+        \\................
+        \\................
     );
     defer match.deinit();
 
     match.print();
 
-    const movements = moves.getMoves(
+    const movements = movement.getPlayableMoves(
         &match,
-        .{ .x = 4, .y = 7 },
+        .{ .x = 0, .y = 0 },
     );
+    defer movements.deinit();
 
-    if (movements) |move_list| {
-        std.debug.print("Number of moves: {}\n", .{move_list.items.len});
-        for (move_list.items, 1..) |move, index| {
-            std.debug.print("{}. {s}{s}Move: {},{}\n", .{
-                index,
-                (if (move.promotion) "Promotion " else ""),
-                (if (move.type == .Capture) "Capture " else if (move.type == .EnPassant) "EnPassant " else if (move.type == .Castling) "Caslting " else ""),
-                move.dest.x,
-                move.dest.y,
-            });
-        }
-
-        moves.executeMove(&match, move_list.items[2]);
-        match.print();
-        moves.undoMove(&match, move_list.items[2]);
-        match.print();
-        move_list.deinit();
-    } else {
-        std.debug.print("No moves\n", .{});
+    for (movements.items, 1..) |move, index| {
+        std.debug.print("{}. {s}{s}Move: {},{}\n", .{
+            index,
+            (if (move.promotion) "Promotion " else ""),
+            (if (move.type == .Capture) "Capture " else if (move.type == .EnPassant) "EnPassant " else if (move.type == .Castling) "Castling " else ""),
+            move.dest.x,
+            move.dest.y,
+        });
     }
+
+    movement.executeMove(&match, movements.items[2]);
+    match.print();
+    movement.undoMove(&match, movements.items[2]);
+    match.print();
 }
