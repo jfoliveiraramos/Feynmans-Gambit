@@ -1,20 +1,21 @@
 const std = @import("std");
-const ArrayList = std.ArrayList;
+const utils = @import("utils.zig");
+const List = utils.List;
 
 pub const Pos = struct { x: usize, y: usize };
 
 pub const Piece = struct {
     const Self = @This();
     pub const Type = enum { Pawn, Bishop, Knight, Rook, Queen, King };
-    pub const Color = enum {
+    pub const Colour = enum {
         White,
         Black,
-        pub fn toString(self: Color) u8 {
+        pub fn toString(self: Colour) u8 {
             return if (self == .White) 'W' else 'B';
         }
     };
     type: Type,
-    color: Color,
+    colour: Colour,
     alive: bool = true,
     has_moved: bool = false,
 
@@ -44,7 +45,7 @@ pub const Piece = struct {
             },
         };
     }
-    pub fn colorFrom(c: u8) Color {
+    pub fn colourFrom(c: u8) Colour {
         return switch (c) {
             'W' => .White,
             'B' => .Black,
@@ -54,8 +55,8 @@ pub const Piece = struct {
             },
         };
     }
-    pub fn isSameColor(self: *Self, p2: *Piece) bool {
-        return self.color == p2.color;
+    pub fn isSameColour(self: *Self, p2: *Piece) bool {
+        return self.colour == p2.colour;
     }
 };
 
@@ -73,77 +74,70 @@ pub const Board = struct {
 
 pub const Match = struct {
     const Self = @This();
-    pieces: ArrayList(*Piece),
-    board: Board = .{ .pieces = .{null} ** 64 },
-    turn: Piece.Color = .White,
-    allocator: std.mem.Allocator,
-    double_pawns: ArrayList(?*Piece),
+    const PieceList = List(Piece, 32);
+    const DoublePawnHist = List(*Piece, 16);
 
-    pub fn init(allocator: std.mem.Allocator) Self {
-        var double_pawns: ArrayList(?*Piece) = ArrayList(?*Piece).init(allocator);
-        double_pawns.append(null) catch |err| {
-            std.log.debug("Error: {}", .{err});
-        };
-        return .{
-            .pieces = ArrayList(*Piece).init(allocator),
-            .allocator = allocator,
-            .double_pawns = double_pawns,
-        };
-    }
+    pieces: PieceList = .{},
+    double_pawn_hist: DoublePawnHist = .{},
+    board: Board = .{ .pieces = .{null} ** 64 },
+    turn: Piece.Colour = .White,
 
     pub fn default(self: *Self) !void {
-        try self.initBoard();
+        self.initBoard();
     }
 
     pub fn fromStr(self: *Self, board: []const u8) !void {
         var i: usize = 0;
-        var color = false;
+        var reading_colour = false;
         var read_piece_type: ?Piece.Type = null;
         for (board) |c| {
             if (c == '\n' or c == ',') {
                 continue;
             }
 
-            if (color) {
+            if (reading_colour) {
                 if (read_piece_type) |piece_type| {
-                    const piece_color: Piece.Color = Piece.colorFrom(c);
-                    try self.initPeace(i % 8, i / 8, piece_type, piece_color);
+                    const colour: Piece.Colour = Piece.colourFrom(c);
+                    self.initPiece(i % 8, i / 8, piece_type, colour);
                 }
                 i += 1;
             } else {
                 read_piece_type = Piece.typeFrom(c);
             }
-            color = !color;
+            reading_colour = !reading_colour;
         }
+    }
+
+    fn initPiece(self: *Self, x: usize, y: usize, piece_type: Piece.Type, piece_colour: Piece.Colour) void {
+        const piece = self.pieces.append(.{
+            .type = piece_type,
+            .colour = piece_colour,
+        });
+        self.board.set(piece, x, y);
     }
 
     fn initBoard(self: *Self) !void {
         for (0..8) |x| {
-            try self.initPeace(x, 1, .Pawn, .Black);
-            try self.initPeace(x, 6, .Pawn, .White);
+            self.initPiece(x, 1, .Pawn, .Black);
+            self.initPiece(x, 6, .Pawn, .White);
         }
-        const layout = [8]Piece.Type{ .Rook, .Knight, .Bishop, .Queen, .King, .Bishop, .Knight, .Rook };
+        const layout = [8]Piece.Type{
+            .Rook,
+            .Knight,
+            .Bishop,
+            .Queen,
+            .King,
+            .Bishop,
+            .Knight,
+            .Rook,
+        };
         for (0.., layout) |x, piece_type| {
-            try self.initPeace(x, 0, piece_type, .Black);
-            try self.initPeace(x, 7, piece_type, .White);
+            self.initPiece(x, 0, piece_type, .Black);
+            self.initPiece(x, 7, piece_type, .White);
         }
     }
 
-    fn initPeace(self: *Self, x: usize, y: usize, piece_type: Piece.Type, color: Piece.Color) !void {
-        const piece: *Piece = try self.allocator.create(Piece);
-        piece.type = piece_type;
-        piece.color = color;
-        try self.pieces.append(piece);
-        self.board.set(piece, x, y);
-    }
-
-    pub fn deinit(self: *Self) void {
-        for (self.pieces.items) |piece| {
-            self.allocator.destroy(piece);
-        }
-        self.pieces.deinit();
-        self.double_pawns.deinit();
-    }
+    pub fn deinit(_: *Self) void {}
 
     pub fn print(self: *Match) void {
         for (0..8) |row| {
@@ -155,7 +149,7 @@ pub const Match = struct {
                     rowBuf[col * 2 + 1] = '.'; // Empty square
                 } else {
                     rowBuf[col * 2] = piece.?.toString();
-                    rowBuf[col * 2 + 1] = piece.?.color.toString();
+                    rowBuf[col * 2 + 1] = piece.?.colour.toString();
                 }
             }
             std.debug.print("{s}\n", .{rowBuf});

@@ -6,14 +6,7 @@ const ArrayList = std.ArrayList;
 const Match = game.Match;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer {
-        const deinit_status = gpa.deinit();
-        if (deinit_status == .leak) @panic(" FAIL");
-    }
-
-    var match = Match.init(allocator);
+    var match = Match{};
     // try match.fromStr(
     //     \\....PW..QW......
     //     \\PBPBPBPBPBPBPBPB
@@ -26,28 +19,38 @@ pub fn main() !void {
     // );
     try match.fromStr(
         \\................
+        \\....PB..........
+        \\................
+        \\......PW........
         \\................
         \\................
         \\................
         \\................
-        \\......RB..QB....
-        \\................
-        \\........KW......
     );
     defer match.deinit();
 
     match.print();
 
-    const movements = movement.getPlayableMoves(
+    var movements = movement.getPiecePlayableMoves(
         &match,
-        .{ .x = 4, .y = 7 },
+        .{ .x = 2, .y = 1 },
     );
-    defer movements.deinit();
-
-    for (movements.items, 0..) |move, index| {
+    for (movements.items(), 0..) |move, index| {
         std.debug.print("{}. ", .{index});
         move.print();
     }
+    movement.executeMove(&match, movements.items()[1]);
+    match.print();
+    movements = movement.getPiecePlayableMoves(
+        &match,
+        .{ .x = 3, .y = 3 },
+    );
+    for (movements.items(), 0..) |move, index| {
+        std.debug.print("{}. ", .{index});
+        move.print();
+    }
+    movement.executeMove(&match, movements.items()[1]);
+    match.print();
 
     if (movement.checkmate(&match, match.turn)) {
         std.debug.print("Checkmate\n", .{});
