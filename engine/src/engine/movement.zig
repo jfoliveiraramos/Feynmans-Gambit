@@ -1,10 +1,25 @@
+// Branches' Gambit Copyright (C) 2025 João Ramos
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+// 
+// You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 const std = @import("std");
 const game = @import("game.zig");
+const utils = @import("utils.zig");
 
-const ArrayList = std.ArrayList;
+const List = utils.List;
 const Match = game.Match;
 const Piece = game.Piece;
-const Color = Piece.Color;
+const Colour = Piece.Colour;
 const Pos = game.Pos;
 
 pub const Move = struct {
@@ -31,6 +46,12 @@ pub const Move = struct {
     }
 };
 
+const MAX_PIECE_MOVES = 27;
+const MAX_MOVES = 256;
+
+pub const PieceMoveList = List(Move, MAX_PIECE_MOVES);
+pub const MoveList = List(Move, MAX_MOVES);
+
 pub fn executeMove(match: *Match, move: Move) void {
     match.board.set(null, move.org.x, move.org.y);
 
@@ -50,13 +71,7 @@ pub fn executeMove(match: *Match, move: Move) void {
         move.piece.type = .Queen;
     }
     if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
-        match.double_pawns.append(move.piece) catch |err| {
-            std.debug.print("Error: {}", .{err});
-        };
-    } else {
-        match.double_pawns.append(null) catch |err| {
-            std.debug.print("Error: {}", .{err});
-        };
+        _ = match.double_pawn_hist.append(move.piece);
     }
     move.piece.has_moved = true;
 }
@@ -82,12 +97,12 @@ pub fn undoMove(match: *Match, move: Move) void {
         move.piece.type = .Pawn;
     }
 
-    _ = match.double_pawns.pop();
+    _ = match.double_pawn_hist.pop();
 
     move.piece.has_moved = false;
 }
 
-fn getMoves(match: *Match, pos: Pos) ArrayList(Move) {
+fn getPieceMoves(match: *Match, pos: Pos) PieceMoveList {
     if (match.board.at(pos.x, pos.y)) |piece| {
         return switch (piece.type) {
             .Pawn => getPawnMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
@@ -98,21 +113,22 @@ fn getMoves(match: *Match, pos: Pos) ArrayList(Move) {
             .King => getKingMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
         };
     }
-    return ArrayList(Move).init(std.heap.page_allocator);
+    return PieceMoveList{};
 }
 
-pub fn getPlayableMoves(match: *Match, pos: Pos) ArrayList(Move) {
-    return filterMoves(match, getMoves(match, pos));
+pub fn getPiecePlayableMoves(match: *Match, pos: Pos) PieceMoveList {
+    const pieceMoves = getPieceMoves(match, pos);
+    return filterMoves(match, MAX_PIECE_MOVES, pieceMoves);
 }
 
 fn hasPawnMoved(piece: *Piece, y: usize) bool {
-    return (piece.color == .Black and y != 1) or (piece.color == .White and y != 6);
+    return (piece.colour == .Black and y != 1) or (piece.colour == .White and y != 6);
 }
 
-fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    var moves = ArrayList(Move).init(std.heap.page_allocator);
+fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+    var moves = PieceMoveList{};
 
-    const vdir: i8 = if (piece.color == .White) -1 else 1;
+    const vdir: i8 = if (piece.colour == .White) -1 else 1;
 
     const range: []const i8 = if (hasPawnMoved(piece, pos.y)) &.{
         1 * vdir,
@@ -125,7 +141,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
         if (new_y < 0 or new_y >= 8) break;
         const uy: usize = @intCast(new_y);
         if (match.board.at(pos.x, uy) == null) {
-            moves.append(.{
+            _ = moves.append(.{
                 .piece = piece,
                 .type = .Quiet,
                 .promotion = uy == 0 or uy == 7,
@@ -134,9 +150,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
                     .x = pos.x,
                     .y = uy,
                 },
-            }) catch |err| {
-                std.debug.print("Error: {}", .{err});
-            };
+            });
         }
     }
 
@@ -147,8 +161,8 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
         const ux: usize = @intCast(new_x);
         const uy: usize = @intCast(new_y);
         if (match.board.at(ux, uy)) |target| {
-            if (target.color != piece.color) {
-                moves.append(.{
+            if (target.colour != piece.colour) {
+                _ = moves.append(.{
                     .piece = piece,
                     .type = .Capture,
                     .capture = .{
@@ -164,15 +178,13 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
                         .x = ux,
                         .y = uy,
                     },
-                }) catch |err| {
-                    std.debug.print("Error: {}", .{err});
-                };
+                });
             }
         }
-        if (match.double_pawns.getLast()) |double| {
+        if (match.double_pawn_hist.top()) |double| {
             if (match.board.at(ux, pos.y)) |target| {
-                if (target == double and target.color != piece.color) {
-                    moves.append(.{
+                if (target == double.* and target.colour != piece.colour) {
+                    _ = moves.append(.{
                         .piece = piece,
                         .type = .EnPassant,
                         .capture = .{
@@ -188,9 +200,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
                             .x = ux,
                             .y = uy,
                         },
-                    }) catch |err| {
-                        std.debug.print("Error: {}", .{err});
-                    };
+                    });
                 }
             }
         }
@@ -198,8 +208,8 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
     return moves;
 }
 
-fn getRookMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    return getMovesInDirection(
+fn getRookMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+    return getMovesInDirections(
         match,
         pos,
         piece,
@@ -207,8 +217,8 @@ fn getRookMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
         false,
     );
 }
-fn getBishopMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    return getMovesInDirection(
+fn getBishopMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+    return getMovesInDirections(
         match,
         pos,
         piece,
@@ -217,8 +227,8 @@ fn getBishopMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
     );
 }
 
-fn getKnightMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    return getMovesInDirection(
+fn getKnightMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+    return getMovesInDirections(
         match,
         pos,
         piece,
@@ -236,8 +246,8 @@ fn getKnightMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
     );
 }
 
-fn getQueenMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    return getMovesInDirection(
+fn getQueenMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+    return getMovesInDirections(
         match,
         pos,
         piece,
@@ -255,8 +265,8 @@ fn getQueenMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
     );
 }
 
-fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
-    var moves = getMovesInDirection(
+fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+    var moves = getMovesInDirections(
         match,
         pos,
         piece,
@@ -273,15 +283,12 @@ fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) ArrayList(Move) {
         true,
     );
 
-    moves.appendSlice(getCastling(match, pos, piece).items) catch |err| {
-        std.debug.print("Error: {}", .{err});
-    };
-
+    moves.appendSlice(getCastling(match, pos, piece).items());
     return moves;
 }
 
-fn getMovesInDirection(match: *Match, pos: Pos, piece: *Piece, directions: []const [2]i8, limited: bool) ArrayList(Move) {
-    var moves = ArrayList(Move).init(std.heap.page_allocator);
+fn getMovesInDirections(match: *Match, pos: Pos, piece: *Piece, directions: []const [2]i8, limited: bool) PieceMoveList {
+    var moves = PieceMoveList{};
     for (directions) |dpos| {
         var i: i8 = 1;
         while (true) : (i += 1) {
@@ -292,8 +299,8 @@ fn getMovesInDirection(match: *Match, pos: Pos, piece: *Piece, directions: []con
             const ux: usize = @intCast(new_x);
             const uy: usize = @intCast(new_y);
             if (match.board.at(ux, uy)) |target| {
-                if (target.color != piece.color) {
-                    moves.append(.{
+                if (target.colour != piece.colour) {
+                    _ = moves.append(.{
                         .piece = piece,
                         .type = .Capture,
                         .org = pos,
@@ -302,38 +309,36 @@ fn getMovesInDirection(match: *Match, pos: Pos, piece: *Piece, directions: []con
                             .piece = target,
                             .pos = .{ .x = ux, .y = uy },
                         },
-                    }) catch |err| {
-                        std.debug.print("Error: {}", .{err});
-                    };
+                    });
                 }
                 break;
             } else {
-                moves.append(
+                _ = moves.append(
                     .{
                         .piece = piece,
                         .type = .Quiet,
                         .org = pos,
                         .dest = .{ .x = ux, .y = uy },
                     },
-                ) catch |err| {
-                    std.debug.print("Error: {}", .{err});
-                };
+                );
             }
+
             if (limited) break;
         }
     }
+
     return moves;
 }
 
-fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
-    var moves = ArrayList(Move).init(std.heap.page_allocator);
+fn getCastling(match: *Match, pos: Pos, king: *Piece) PieceMoveList {
+    var moves = PieceMoveList{};
 
     if (king.has_moved) return moves;
 
     for ([2]usize{ 0, 7 }) |x| {
         if (match.board.at(x, pos.y)) |rook| {
             if (rook.type != .Rook) continue;
-            if (rook.color != king.color or rook.has_moved) continue;
+            if (rook.colour != king.colour or rook.has_moved) continue;
 
             const start: usize = (if (x < pos.x) x else pos.x) + 1;
             const end: usize = (if (x < pos.x) pos.x else x);
@@ -345,41 +350,47 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) ArrayList(Move) {
                     break;
                 }
 
-                const move: Move = .{
+                const king_move: Move = .{
                     .type = .Quiet,
                     .dest = .{ .x = curr, .y = pos.y },
                     .org = .{ .x = pos.x, .y = pos.y },
                     .piece = king,
                 };
-                if (!validMove(match, move)) {
+                if (!validMove(match, king_move)) {
                     can_castle = false;
                     break;
                 }
             }
 
             if (can_castle) {
-                moves.append(.{
+                _ = moves.append(.{
                     .type = .Castling,
                     .dest = .{ .x = x, .y = pos.y },
                     .org = pos,
                     .piece = king,
-                }) catch |err| {
-                    std.debug.print("Error: {}", .{err});
-                };
+                });
             }
         }
     }
     return moves;
 }
 
-fn filterMoves(match: *Match, moves: ArrayList(Move)) ArrayList(Move) {
-    var filtered_moves = ArrayList(Move).init(std.heap.page_allocator);
+fn filterMoves(
+    match: *Match,
+    comptime capacity: usize,
+    moves: List(Move, capacity),
+) List(
+    Move,
+    capacity,
+) {
+    var filtered_moves = List(
+        Move,
+        capacity,
+    ){};
 
-    for (moves.items) |move| {
+    for (moves.items()) |move| {
         if (validMove(match, move)) {
-            filtered_moves.append(move) catch |err| {
-                std.debug.print("Error: {}", .{err});
-            };
+            _ = filtered_moves.append(move);
         }
     }
     return filtered_moves;
@@ -392,16 +403,16 @@ fn validMove(match: *Match, move: Move) bool {
     return valid;
 }
 
-fn check(match: *Match, color: Color) bool {
+fn check(match: *Match, colour: Colour) bool {
     for (match.board.pieces, 0..) |spot, i| {
         if (spot) |piece| {
-            if (piece.color != color) {
-                const moves = getMoves(match, .{
+            if (piece.colour != colour) {
+                const moves = getPieceMoves(match, .{
                     .x = i % 8,
                     .y = i / 8,
                 });
 
-                for (moves.items) |move| {
+                for (moves.items()) |move| {
                     if (move.capture) |capture| {
                         if (capture.piece.type == .King) return true;
                     }
@@ -412,16 +423,16 @@ fn check(match: *Match, color: Color) bool {
     return false;
 }
 
-fn cantPlay(match: *Match, color: Color) bool {
+fn cantPlay(match: *Match, colour: Colour) bool {
     for (match.board.pieces, 0..) |spot, i| {
         if (spot) |piece| {
-            if (piece.color == color) {
-                const moves = getMoves(match, .{
+            if (piece.colour == colour) {
+                const moves = getPieceMoves(match, .{
                     .x = i % 8,
                     .y = i / 8,
                 });
 
-                for (moves.items) |move| {
+                for (moves.items()) |move| {
                     if (validMove(match, move)) return false;
                 }
             }
@@ -430,9 +441,9 @@ fn cantPlay(match: *Match, color: Color) bool {
     return true;
 }
 
-pub fn checkmate(match: *Match, color: Color) bool {
-    return check(match, match.turn) and cantPlay(match, color);
+pub fn checkmate(match: *Match, colour: Colour) bool {
+    return check(match, match.turn) and cantPlay(match, colour);
 }
-pub fn stalemate(match: *Match, color: Color) bool {
-    return !check(match, match.turn) and cantPlay(match, color);
+pub fn stalemate(match: *Match, colour: Colour) bool {
+    return !check(match, match.turn) and cantPlay(match, colour);
 }

@@ -1,8 +1,22 @@
+// Branches' Gambit Copyright (C) 2025 João Ramos
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+// 
+// You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 const std = @import("std");
 const moves = @import("engine").movement;
 const game = @import("engine").game;
+const MoveList = moves.Move;
 const Move = moves.Move;
-const ArrayList = std.ArrayList;
 
 const Board = game.Board;
 const Piece = game.Piece;
@@ -32,8 +46,7 @@ test "initial pawn movement" {
         \\RHBQKBHK
     );
 
-    var correct_moves = ArrayList(Move).init(std.testing.allocator);
-    defer correct_moves.deinit();
+    var correct_moves = moves.PieceMoveList.empty;
     correct_moves.append(.{
         .type = .Quiet,
         .promotion = false,
@@ -55,7 +68,7 @@ test "initial pawn movement" {
         std.debug.print("Error: {}", .{err});
     };
 
-    const movements = moves.getMoves(
+    const movements = moves.getPiecePlayableMoves(
         board,
         .{ .x = 1, .y = 1 },
     );
