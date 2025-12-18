@@ -1,8 +1,8 @@
 const std = @import("std");
 const moves = @import("engine").movement;
 const game = @import("engine").game;
+const MoveList = moves.Move;
 const Move = moves.Move;
-const ArrayList = std.ArrayList;
 
 const Board = game.Board;
 const Piece = game.Piece;
@@ -32,8 +32,7 @@ test "initial pawn movement" {
         \\RHBQKBHK
     );
 
-    var correct_moves = ArrayList(Move).init(std.testing.allocator);
-    defer correct_moves.deinit();
+    var correct_moves = moves.PieceMoveList.empty;
     correct_moves.append(.{
         .type = .Quiet,
         .promotion = false,
@@ -55,7 +54,7 @@ test "initial pawn movement" {
         std.debug.print("Error: {}", .{err});
     };
 
-    const movements = moves.getMoves(
+    const movements = moves.getPiecePlayableMoves(
         board,
         .{ .x = 1, .y = 1 },
     );
