@@ -12,5 +12,8 @@
 // 
 // You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-pub const game = @import("engine/game.zig");
-pub const movement = @import("engine/movement.zig");
+import gleam/io
+
+pub fn main() -> Nil {
+  io.println("Hello from app!")
+}
