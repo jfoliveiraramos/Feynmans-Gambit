@@ -1,56 +1,72 @@
-# Branches' Gambit
+# Feynman's Gambit
 
-**Branches' Gambit** is a work-in-progress chess platform. This didactic project is designed to experiment with and maximise exposure to multiple languages and technology stacks. It combines live gameplay, real-time analytics, and a modern web interface.
-
-## License
-
-This project is released under the **GNU Affero General Public License v3.0 (AGPL-3.0) or later**.
-
-Please see the [LICENSE](LICENSE) file for the full text of the license.
+**Feynman's Gambit** is an ambitious chess platform that integrates modern technologies to deliver high-performance chess game interactions, real-time analytics, and an engaging user experience. The platform will leverage **Zig**, **Rust**, **React**, and **Go**, each playing a distinct role within the system, to create a scalable, efficient, and responsive system architecture.
 
 ## Objective
 
-Create a scalable chess system with:
+The objective is to create a scalable, performant, and modular chess platform that can handle real-time game logic, user interactions, game state management, data analytics, and provide a rich, dynamic user experience. The platform will use four different technologies, each specialised for different components of the system:
 
-- **Zig**: Chess engine, move generation, board state  
-- **Rust**: TUI, local match orchestration, engine interface  
-- **Gleam**: Web-facing API, event broker for analytics and game state  
-- **Svelte**: Frontend UI, player interactions  
-- **Go**: Data analytics microservice, metrics and player statistics  
+- **Zig**: Chess Engine, Game Logic, Board State
+- **Rust**: Backend, API Management, Database Interaction
+- **React**: Frontend, User Interface, WebSocket Communication
+- **Go**: Data Analytics, Real-Time Metrics, and Player Statistics
 
 ## Architecture Overview
 
-### 1. **Frontend (Svelte)**
-- Displays board, moves, and analytics.
-- Sends player moves to Gleam via API or WebSocket.
-- Subscribes to game state updates from Gleam.
+### 1. **Frontend (React)**
+- **Role**: Client-side interaction, WebSockets, UI rendering.
+- **Technologies**: React (Frontend framework)
+- **Responsibilities**:
+  - **User Interface**: React will handle the entire UI, rendering the chessboard, game state, player interactions (move/undo), and notifications.
+  - **Real-Time Communication**: React will handle WebSocket connections to communicate with the Rust backend for real-time game updates.
+  - **Game State Rendering**: It will display updated game states, including moves, in real time.
+  - **Player Interaction**: Capture user inputs (move pieces, make decisions) and send them to the backend for processing.
 
-### 2. **Chess Engine (Zig)**
-- Handles move generation, validation, and optional AI.
-- Maintains consistent board state for matches.
+### 2. **Chess Engine & Game Logic (Zig)**
+- **Role**: Game logic, chess rules, board state management, and move validation.
+- **Technologies**: Zig (Chess engine implementation)
+- **Responsibilities**:
+  - **Chess Engine**: Zig will implement the core chess logic, including move generation, validation, and determining game outcomes (checkmate, stalemate, etc.).
+  - **Game State Management**: Zig will maintain the game state (e.g., board positions, player turns) and ensure consistency with chess rules.
+  - **AI (Optional)**: If implementing a computer opponent, Zig will handle the chess engine's AI, responding to player moves.
 
-### 3. **Local Match Orchestrator (Rust)**
-- Directly calls Zig for move validation and AI responses.
-- Holds live in-memory game state.
-- Publishes move events to a message queue (e.g., NATS) for Gleam.
+### 3. **Backend (Rust)**
+- **Role**: Backend logic, interfacing with the Zig chess engine, database management, and API handling.
+- **Technologies**: Rust (General backend)
+- **Responsibilities**:
+  - **Game State API**: Rust will provide the API layer that manages game sessions, fetching game state, validating moves, and sending results to the frontend.
+  - **Communication with Zig**: Rust will interface with the Zig chess engine to validate and process moves, as well as manage game state transitions.
+  - **Player Management**: Rust will handle player profiles, login sessions, authentication, and game history.
+  - **Database Interaction**: Rust will connect to and manage the database, storing player data, game history, and session details.
+  - **Game Logic Flow**: Rust will manage the overall game flow, interacting with Zig for move validation and ensuring proper game progression.
 
-### 4. **Web Backend & Event Broker (Gleam)**
-- Receives moves from Svelte and forwards them to Rust via queue.
-- Subscribes to Rust move events to provide real-time API responses.
-- Offloads analytics tasks to Go asynchronously.
-- Provides APIs for frontend consumption (game state, analytics).
-
-### 5. **Analytics Microservice (Go)**
-- Subscribes to Gleam or queue events.
-- Computes real-time metrics, player statistics, and performance trends.
-- Stores aggregated analytics for frontend dashboards.
+### 4. **External Data Analysis Tool (Go)**
+- **Role**: Data analysis, real-time metrics, player analytics.
+- **Technologies**: Go (Data analysis, metrics processing)
+- **Responsibilities**:
+  - **Real-Time Metrics**: Go will track player performance, average game duration, win/loss ratios, and other key statistics.
+  - **Data Processing**: Go will fetch game data from the database or API, perform analytics, and generate insights.
+  - **Player Analytics**: Track player statistics, win streaks, and other analytics.
+  - **External Service**: Go will operate as a separate service that asynchronously handles long-running data tasks.
+  - **Reporting & Dashboards**: Go can generate and store reports, performance trends, and analytics for use by both players and administrators.
 
 ## Communication Flow
 
-1. **Svelte UI** → **Gleam API** → sends player moves  
-2. **Gleam** → publishes moves to **Rust** via message queue  
-3. **Rust** ↔ **Zig** → validates moves, updates game state  
-4. **Rust** → publishes move events → **Gleam** → **Svelte** updates UI  
-5. **Gleam** → forwards events to **Go analytics service** for metrics/trends  
+The following is the communication flow between the components:
 
-This design avoids persistent databases for live games, using **in-memory state + event-driven messaging** to keep everything real-time and decoupled.
+1. **React (Frontend)**:
+   - Sends **WebSocket requests** to the **Rust backend** for game interactions (starting games, making moves, updating game state).
+   
+2. **Rust (Backend)**:
+   - Interacts with **Zig** to validate moves and update game states.
+   - Handles the overall flow of the game and ensures that the game is proceeding correctly.
+   - Communicates with the **database** to store player information, game history, and session data.
+
+3. **Zig (Chess Engine)**:
+   - Handles the core **game logic** (move validation, board state updates, AI, etc.).
+   - Sends move validation responses and updated game states back to Rust.
+
+4. **Go (External Data Analysis)**:
+   - Retrieves game data from the **Rust API** or **database**.
+   - Processes **real-time metrics**, tracks player performance, and generates reports.
+   - Stores aggregated statistics for long-term analysis.
