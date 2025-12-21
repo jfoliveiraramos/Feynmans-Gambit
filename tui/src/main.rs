@@ -50,7 +50,7 @@ impl App {
             .centered();
         let text = "Hello, Ratatui!\n\n\
             Created using https://github.com/ratatui/templates\n\
-            Press `Esc`, `Ctrl-C` or `q` to stop running.";
+            Press `Esc`, `Ctrl-C`, `q` or `Q` to stop running.";
         frame.render_widget(
             Paragraph::new(text)
                 .block(Block::bordered().title(title))
@@ -77,7 +77,7 @@ impl App {
     /// Handles the key events and updates the state of [`App`].
     fn on_key_event(&mut self, key: KeyEvent) {
         match (key.modifiers, key.code) {
-            (_, KeyCode::Esc | KeyCode::Char('q'))
+            (_, KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q'))
             | (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
             // Add other key handlers here.
             _ => {}
