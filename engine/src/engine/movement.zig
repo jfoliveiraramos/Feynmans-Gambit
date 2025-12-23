@@ -1,15 +1,15 @@
 // Branches' Gambit Copyright (C) 2025 João Ramos
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
 // published by the Free Software Foundation, either version 3 of the
 // License, or (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 const std = @import("std");
@@ -18,6 +18,7 @@ const utils = @import("utils.zig");
 
 const List = utils.List;
 const Match = game.Match;
+const Castling = game.Castling;
 const Piece = game.Piece;
 const Colour = Piece.Colour;
 const Pos = game.Pos;
@@ -52,11 +53,10 @@ const MAX_MOVES = 256;
 pub const PieceMoveList = List(Move, MAX_PIECE_MOVES);
 pub const MoveList = List(Move, MAX_MOVES);
 
-pub fn executeMove(match: *Match, move: Move) void {
+pub fn executeMove(match: *Match, move: Move) ?*Piece {
     match.board.set(null, move.org.x, move.org.y);
 
     if (move.capture) |capture| {
-        capture.piece.alive = false;
         match.board.set(null, capture.pos.x, capture.pos.y);
     }
 
@@ -71,12 +71,14 @@ pub fn executeMove(match: *Match, move: Move) void {
         move.piece.type = .Queen;
     }
     if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
-        _ = match.double_pawn_hist.append(move.piece);
+        const previous_double_pawn = match.last_double_pawn;
+        match.last_double_pawn = move.piece;
+        return previous_double_pawn;
     }
-    move.piece.has_moved = true;
+    return null;
 }
 
-pub fn undoMove(match: *Match, move: Move) void {
+pub fn undoMove(match: *Match, move: Move, prev_double_pawn: ?*Piece) void {
     match.board.set(move.piece, move.org.x, move.org.y);
 
     match.board.set(null, move.dest.x, move.dest.y);
@@ -89,7 +91,6 @@ pub fn undoMove(match: *Match, move: Move) void {
     }
 
     if (move.capture) |capture| {
-        capture.piece.alive = true;
         match.board.set(capture.piece, capture.pos.x, capture.pos.y);
     }
 
@@ -97,9 +98,7 @@ pub fn undoMove(match: *Match, move: Move) void {
         move.piece.type = .Pawn;
     }
 
-    _ = match.double_pawn_hist.pop();
-
-    move.piece.has_moved = false;
+    match.last_double_pawn = prev_double_pawn;
 }
 
 fn getPieceMoves(match: *Match, pos: Pos) PieceMoveList {
@@ -181,7 +180,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
                 });
             }
         }
-        if (match.double_pawn_hist.top()) |double| {
+        if (match.last_double_pawn) |double| {
             if (match.board.at(ux, pos.y)) |target| {
                 if (target == double.* and target.colour != piece.colour) {
                     _ = moves.append(.{
@@ -333,12 +332,13 @@ fn getMovesInDirections(match: *Match, pos: Pos, piece: *Piece, directions: []co
 fn getCastling(match: *Match, pos: Pos, king: *Piece) PieceMoveList {
     var moves = PieceMoveList{};
 
-    if (king.has_moved) return moves;
-
     for ([2]usize{ 0, 7 }) |x| {
+        const flag = 1 << ((if (x == 0) 1 else 0) + (if (king.colour == .White) 0 else 2));
+
+        if (!(flag & match.castle_available)) continue;
         if (match.board.at(x, pos.y)) |rook| {
             if (rook.type != .Rook) continue;
-            if (rook.colour != king.colour or rook.has_moved) continue;
+            if (rook.colour != king.colour) continue;
 
             const start: usize = (if (x < pos.x) x else pos.x) + 1;
             const end: usize = (if (x < pos.x) pos.x else x);
@@ -397,9 +397,9 @@ fn filterMoves(
 }
 
 fn validMove(match: *Match, move: Move) bool {
-    executeMove(match, move);
+    const prev_double_pawn = executeMove(match, move);
     const valid = !check(match, match.turn);
-    undoMove(match, move);
+    undoMove(match, move, prev_double_pawn);
     return valid;
 }
 

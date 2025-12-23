@@ -1,15 +1,15 @@
 // Branches' Gambit Copyright (C) 2025 João Ramos
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
 // published by the Free Software Foundation, either version 3 of the
 // License, or (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 const std = @import("std");
@@ -24,50 +24,42 @@ pub const Piece = struct {
     pub const Colour = enum {
         White,
         Black,
-        pub fn toString(self: Colour) u8 {
-            return if (self == .White) 'W' else 'B';
-        }
     };
     type: Type,
     colour: Colour,
-    alive: bool = true,
     has_moved: bool = false,
 
-    pub fn toString(self: Piece) u8 {
-        return switch (self.type) {
-            .Pawn => 'P',
-            .Rook => 'R',
-            .Knight => 'N',
-            .Bishop => 'B',
-            .Queen => 'Q',
-            .King => 'K',
+    pub fn toString(self: *const Piece) u8 {
+        const c: u8 = blk: {
+            break :blk switch (self.type) {
+                .Pawn => 'p',
+                .Rook => 'r',
+                .Knight => 'n',
+                .Bishop => 'b',
+                .Queen => 'q',
+                .King => 'k',
+            };
         };
+        return if (self.colour == .White) c else std.ascii.toUpper(c);
     }
 
-    pub fn typeFrom(c: u8) ?Type {
-        return switch (c) {
-            'P' => .Pawn,
-            'R' => .Rook,
-            'N' => .Knight,
-            'B' => .Bishop,
-            'Q' => .Queen,
-            'K' => .King,
-            '.' => null,
+    pub fn typeFrom(c: u8) Type {
+        return switch (std.ascii.toLower(c)) {
+            'p' => .Pawn,
+            'r' => .Rook,
+            'n' => .Knight,
+            'b' => .Bishop,
+            'q' => .Queen,
+            'k' => .King,
             else => {
-                std.debug.print("Unreachable character: {}\n", .{c});
+                std.debug.print("Unreachable character: {c}\n", .{c});
                 unreachable;
             },
         };
     }
     pub fn colourFrom(c: u8) Colour {
-        return switch (c) {
-            'W' => .White,
-            'B' => .Black,
-            else => {
-                std.debug.print("Unreachable character: {}\n", .{c});
-                unreachable;
-            },
-        };
+        if (!std.ascii.isAlphabetic(c)) unreachable;
+        return if (std.ascii.isLower(c)) .White else .Black;
     }
     pub fn isSameColour(self: *Self, p2: *Piece) bool {
         return self.colour == p2.colour;
@@ -76,94 +68,185 @@ pub const Piece = struct {
 
 pub const Board = struct {
     const Self = @This();
-    pieces: [64]?*Piece,
+    pieces: [64]?Piece,
 
-    pub fn at(self: *Self, x: usize, y: usize) ?*Piece {
+    pub fn at(self: *const Self, x: usize, y: usize) ?Piece {
         return self.pieces[y * 8 + x];
     }
-    pub fn set(self: *Self, piece: ?*Piece, x: usize, y: usize) void {
+    pub fn set(self: *Self, piece: ?Piece, x: usize, y: usize) void {
         self.pieces[y * 8 + x] = piece;
     }
+};
+
+pub const Castling = enum(u4) {
+    WhiteKing = 1 << 0,
+    WhiteQueen = 1 << 1,
+    BlackKing = 1 << 2,
+    BlackQueen = 1 << 3,
 };
 
 pub const Match = struct {
     const Self = @This();
     const PieceList = List(Piece, 32);
-    const DoublePawnHist = List(*Piece, 16);
 
-    pieces: PieceList = .{},
-    double_pawn_hist: DoublePawnHist = .{},
-    board: Board = .{ .pieces = .{null} ** 64 },
-    turn: Piece.Colour = .White,
+    board: Board,
+    turn: Piece.Colour,
+    castle_availability: u4,
+    en_passant: ?Pos,
 
-    pub fn default(self: *Self) !void {
-        self.initBoard();
+    pub fn empty() Self {
+        return Self{
+            .board = .{ .pieces = .{null} ** 64 },
+            .turn = .White,
+            .castle_availability = @intFromEnum(Castling.WhiteKing) |
+                @intFromEnum(Castling.WhiteQueen) |
+                @intFromEnum(Castling.BlackKing) |
+                @intFromEnum(Castling.BlackQueen),
+            .en_passant = null,
+        };
+    }
+    pub fn fromFEN(fen: []const u8) error{
+        InvalidRowCount,
+        UnexpectedChar,
+        UnexpectedSpace,
+        InvalidPosition,
+    }!Self {
+        var board: Board = .{ .pieces = .{null} ** 64 };
+        var turn: Piece.Colour = undefined;
+        var castle_availability: u4 = 0;
+        var en_passant: ?Pos = undefined;
+        const State = enum {
+            PiecePlacement,
+            ActiveColor,
+            CastleAvailability,
+            EnPassantTargetSqr,
+            HalfmoveClock,
+            FullmoveNumber,
+            End,
+        };
+        var state = State.PiecePlacement;
+        var i: usize = 0;
+        while (state != .End and i < fen.len) {
+            switch (state) {
+                .PiecePlacement => {
+                    var row: usize = 0;
+                    var col: usize = 0;
+                    for (fen, 0..) |c, index| {
+                        switch (c) {
+                            '/' => {
+                                if (col != 8) return error.InvalidRowCount;
+                                row += 1;
+                                col = 0;
+                            },
+                            '1'...'8' => {
+                                col += c - '0';
+                            },
+                            'a'...'z', 'A'...'Z' => {
+                                const piece_colour = Piece.colourFrom(c);
+                                const piece_type = Piece.typeFrom(c);
+                                board.set(.{ .type = piece_type, .colour = piece_colour }, col, row);
+                                col += 1;
+                            },
+                            ' ' => {
+                                if (row != 7 or col != 8) {
+                                    std.debug.print("{d},{d}\n", .{ row, col });
+                                    return error.UnexpectedSpace;
+                                }
+                                state = .ActiveColor;
+                                i = index + 1;
+                                break;
+                            },
+                            else => return error.UnexpectedChar,
+                        }
+                        if (col > 8) return error.InvalidRowCount;
+                    }
+                },
+                .ActiveColor => {
+                    switch (fen[i]) {
+                        'w' => turn = .White,
+                        'b' => turn = .Black,
+                        else => return error.UnexpectedChar,
+                    }
+                    if (fen[i + 1] != ' ') return error.UnexpectedChar;
+                    i += 2;
+                    state = .CastleAvailability;
+                },
+                .CastleAvailability => {
+                    switch (fen[i]) {
+                        'K' => castle_availability |= @intFromEnum(Castling.WhiteKing),
+                        'Q' => castle_availability |= @intFromEnum(Castling.WhiteQueen),
+                        'k' => castle_availability |= @intFromEnum(Castling.BlackKing),
+                        'q' => castle_availability |= @intFromEnum(Castling.BlackKing),
+                        '-' => {},
+                        ' ' => state = .EnPassantTargetSqr,
+                        else => return error.UnexpectedChar,
+                    }
+                    i += 1;
+                },
+                .EnPassantTargetSqr => {
+                    if (fen[i] != '-') {
+                        if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
+                        if (fen[i + 1] < '0' or fen[i + 1] > '7') return error.InvalidPosition;
+                        if (fen[i + 2] != ' ') return error.UnexpectedChar;
+                        en_passant = .{ .x = fen[i] - 'a', .y = fen[i + 1] - '0' };
+                        i += 3;
+                    }
+                    state = .End;
+                },
+                else => unreachable,
+            }
+        }
+        return Self{
+            .board = board,
+            .turn = turn,
+            .castle_availability = castle_availability,
+            .en_passant = en_passant,
+        };
     }
 
-    pub fn fromStr(self: *Self, board: []const u8) !void {
+    pub fn fromStr(board: []const u8) Self {
+        var match = Self.empty();
         var i: usize = 0;
-        var reading_colour = false;
-        var read_piece_type: ?Piece.Type = null;
         for (board) |c| {
-            if (c == '\n' or c == ',') {
+            if (c == '\n' or c == ' ') {
                 continue;
             }
-
-            if (reading_colour) {
-                if (read_piece_type) |piece_type| {
-                    const colour: Piece.Colour = Piece.colourFrom(c);
-                    self.initPiece(i % 8, i / 8, piece_type, colour);
-                }
-                i += 1;
-            } else {
-                read_piece_type = Piece.typeFrom(c);
+            if (std.ascii.isAlphabetic(c)) {
+                const piece_colour = Piece.colourFrom(c);
+                const piece_type = Piece.typeFrom(c);
+                match.board.set(.{
+                    .type = piece_type,
+                    .colour = piece_colour,
+                }, i % 8, i / 8);
             }
-            reading_colour = !reading_colour;
+            i += 1;
         }
+        return match;
     }
 
-    fn initPiece(self: *Self, x: usize, y: usize, piece_type: Piece.Type, piece_colour: Piece.Colour) void {
-        const piece = self.pieces.append(.{
-            .type = piece_type,
-            .colour = piece_colour,
-        });
-        self.board.set(piece, x, y);
-    }
-
-    fn initBoard(self: *Self) !void {
+    fn default() Self {
+        const match = Self.empty();
         for (0..8) |x| {
-            self.initPiece(x, 1, .Pawn, .Black);
-            self.initPiece(x, 6, .Pawn, .White);
+            match.board.set(.{ .type = .Pawn, .colour = .Black }, x, 1);
+            match.board.set(.{ .type = .Pawn, .colour = .White }, x, 6);
         }
-        const layout = [8]Piece.Type{
-            .Rook,
-            .Knight,
-            .Bishop,
-            .Queen,
-            .King,
-            .Bishop,
-            .Knight,
-            .Rook,
-        };
+        const layout = [8]Piece.Type{ .Rook, .Knight, .Bishop, .Queen, .King, .Bishop, .Knight, .Rook };
         for (0.., layout) |x, piece_type| {
-            self.initPiece(x, 0, piece_type, .Black);
-            self.initPiece(x, 7, piece_type, .White);
+            match.board.set(.{ .type = piece_type, .colour = .Black }, x, 0);
+            match.board.set(.{ .type = piece_type, .colour = .White }, x, 7);
         }
+        return match;
     }
 
-    pub fn deinit(_: *Self) void {}
-
-    pub fn print(self: *Match) void {
+    pub fn print(self: *const Match) void {
         for (0..8) |row| {
-            var rowBuf: [16]u8 = .{0} ** 16;
+            var rowBuf: [8]u8 = .{0} ** 8;
             for (0..8) |col| {
-                const piece = self.board.at(col, row);
-                if (piece == null) {
-                    rowBuf[col * 2] = '.'; // Empty square
-                    rowBuf[col * 2 + 1] = '.'; // Empty square
+                const occupant = self.board.at(col, row);
+                if (occupant) |piece| {
+                    rowBuf[col] = piece.toString();
                 } else {
-                    rowBuf[col * 2] = piece.?.toString();
-                    rowBuf[col * 2 + 1] = piece.?.colour.toString();
+                    rowBuf[col] = '.';
                 }
             }
             std.debug.print("{s}\n", .{rowBuf});
