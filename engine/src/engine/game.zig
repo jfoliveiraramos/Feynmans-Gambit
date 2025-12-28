@@ -70,8 +70,10 @@ pub const Board = struct {
     const Self = @This();
     pieces: [64]?Piece,
 
-    pub fn at(self: *const Self, x: usize, y: usize) ?Piece {
-        return self.pieces[y * 8 + x];
+    pub fn at(self: *Self, x: usize, y: usize) ?*Piece {
+        const idx = (7 - y) * 8 + x;
+        if (self.pieces[idx]) |_| return &self.pieces[idx].?;
+        return null;
     }
     pub fn set(self: *Self, piece: ?Piece, x: usize, y: usize) void {
         self.pieces[y * 8 + x] = piece;
@@ -94,6 +96,17 @@ pub const Match = struct {
     castle_availability: u4,
     en_passant: ?Pos,
 
+    const FenError = error{
+        InvalidRowCount,
+        UnexpectedChar,
+        UnexpectedSpace,
+        InvalidPosition,
+    };
+
+    pub fn default() FenError!Self {
+        return Self.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+    }
+
     pub fn empty() Self {
         return Self{
             .board = .{ .pieces = .{null} ** 64 },
@@ -105,12 +118,7 @@ pub const Match = struct {
             .en_passant = null,
         };
     }
-    pub fn fromFEN(fen: []const u8) error{
-        InvalidRowCount,
-        UnexpectedChar,
-        UnexpectedSpace,
-        InvalidPosition,
-    }!Self {
+    pub fn fromFEN(fen: []const u8) FenError!Self {
         var board: Board = .{ .pieces = .{null} ** 64 };
         var turn: Piece.Colour = undefined;
         var castle_availability: u4 = 0;
@@ -149,7 +157,6 @@ pub const Match = struct {
                             },
                             ' ' => {
                                 if (row != 7 or col != 8) {
-                                    std.debug.print("{d},{d}\n", .{ row, col });
                                     return error.UnexpectedSpace;
                                 }
                                 state = .ActiveColor;
@@ -190,6 +197,8 @@ pub const Match = struct {
                         if (fen[i + 2] != ' ') return error.UnexpectedChar;
                         en_passant = .{ .x = fen[i] - 'a', .y = fen[i + 1] - '0' };
                         i += 3;
+                    } else {
+                        en_passant = null;
                     }
                     state = .End;
                 },
@@ -220,20 +229,6 @@ pub const Match = struct {
                 }, i % 8, i / 8);
             }
             i += 1;
-        }
-        return match;
-    }
-
-    fn default() Self {
-        const match = Self.empty();
-        for (0..8) |x| {
-            match.board.set(.{ .type = .Pawn, .colour = .Black }, x, 1);
-            match.board.set(.{ .type = .Pawn, .colour = .White }, x, 6);
-        }
-        const layout = [8]Piece.Type{ .Rook, .Knight, .Bishop, .Queen, .King, .Bishop, .Knight, .Rook };
-        for (0.., layout) |x, piece_type| {
-            match.board.set(.{ .type = piece_type, .colour = .Black }, x, 0);
-            match.board.set(.{ .type = piece_type, .colour = .White }, x, 7);
         }
         return match;
     }
