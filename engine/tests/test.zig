@@ -13,73 +13,54 @@
 // You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 const std = @import("std");
-const moves = @import("engine").movement;
-const game = @import("engine").game;
+const engine = @import("engine");
+const moves = engine.movement;
+const game = engine.game;
 const MoveList = moves.Move;
 const Move = moves.Move;
 
 const Board = game.Board;
 const Piece = game.Piece;
 
-fn boardFromString(boardStr: *const [71]u8) Board {
-    var board: Board = .{null} ** 64;
-    var i: usize = 0;
-    for (boardStr) |c| {
-        if (c == '\n') {
-            continue;
-        }
-        board[i] = Piece.typeFrom(c, i < 32);
-        i += 1;
-    }
-    return board;
-}
-
 test "initial pawn movement" {
-    const board = boardFromString(
-        \\RHBQKBHK
-        \\PPPPPPPP
-        \\........
-        \\........
-        \\........
-        \\........
-        \\PPPPPPPP
-        \\RHBQKBHK
-    );
-
-    var correct_moves = moves.PieceMoveList.empty;
-    correct_moves.append(.{
+    var match = try game.Match.default();
+    var correct_moves = moves.PieceMoveList{};
+    _ = correct_moves.append(.{
         .type = .Quiet,
         .promotion = false,
+        .org = .{
+            .x = 0,
+            .y = 1,
+        },
         .dest = .{
-            .x = 1,
+            .x = 0,
             .y = 2,
         },
-    }) catch |err| {
-        std.debug.print("Error: {}", .{err});
-    };
-    correct_moves.append(.{
+        .piece = match.board.at(0, 1).?,
+    });
+
+    _ = correct_moves.append(.{
         .type = .Quiet,
         .promotion = false,
+        .org = .{
+            .x = 0,
+            .y = 1,
+        },
         .dest = .{
-            .x = 1,
+            .x = 0,
             .y = 3,
         },
-    }) catch |err| {
-        std.debug.print("Error: {}", .{err});
-    };
+        .piece = match.board.at(0, 1).?,
+    });
 
     const movements = moves.getPiecePlayableMoves(
-        board,
-        .{ .x = 1, .y = 1 },
+        &match,
+        .{ .x = 0, .y = 1 },
     );
 
-    if (movements) |move_list| {
-        defer move_list.deinit();
+    try std.testing.expect(correct_moves.len == movements.len);
 
-        try std.testing.expect(correct_moves.items.len == move_list.items.len);
-
-        for (correct_moves.items, move_list.items) |correct, move| {
-            try std.testing.expect(correct.eq(move));
-        }
+    for (correct_moves.items(), movements.items()) |correct, move| {
+        try std.testing.expect(correct.eq(move));
     }
 }
