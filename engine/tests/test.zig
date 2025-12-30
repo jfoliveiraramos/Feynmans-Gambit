@@ -27,7 +27,6 @@ test "initial pawn movement" {
     var correct_moves = moves.PieceMoveList{};
     _ = correct_moves.append(.{
         .type = .Quiet,
-        .promotion = false,
         .org = .{
             .x = 0,
             .y = 1,
@@ -41,7 +40,6 @@ test "initial pawn movement" {
 
     _ = correct_moves.append(.{
         .type = .Quiet,
-        .promotion = false,
         .org = .{
             .x = 0,
             .y = 1,
@@ -63,4 +61,43 @@ test "initial pawn movement" {
     for (correct_moves.items(), movements.items()) |correct, move| {
         try std.testing.expect(correct.eq(move));
     }
+}
+
+test "game: check detection" {
+    var m1 = try game.Match.fromFEN("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3");
+    try std.testing.expect(moves.check(&m1, .White));
+
+    var m2 = try game.Match.fromFEN("4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1");
+    try std.testing.expect(moves.check(&m2, .Black));
+}
+
+test "game: stalemate detection" {
+    var m = try game.Match.fromFEN("k7/8/1Q6/8/8/8/8/7K b - - 0 1");
+
+    try std.testing.expect(moves.stalemate(&m, .Black));
+}
+//
+test "game: checkmate detection" {
+    var m1 = try game.Match.fromFEN("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3");
+    try std.testing.expect(moves.checkmate(&m1, .White));
+
+    var m2 = try game.Match.fromFEN("4R1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1");
+    try std.testing.expect(moves.checkmate(&m2, .Black));
+
+    var m3 = try game.Match.fromFEN("6rk/6pp/7N/8/8/8/8/6K1 b - - 0 1");
+    try std.testing.expect(!moves.checkmate(&m3, .Black));
+    _ = moves.executeMove(&m3, .{
+        .capture = null,
+        .piece = .{
+            .colour = .White,
+            .type = .Knight,
+        },
+        .type = .Quiet,
+        .org = .{ .x = 7, .y = 2 },
+        .dest = .{ .x = 5, .y = 1 },
+    });
+    try std.testing.expect(moves.checkmate(&m3, .Black));
+
+    var m4 = try game.Match.fromFEN("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1");
+    try std.testing.expect(moves.checkmate(&m4, .Black));
 }

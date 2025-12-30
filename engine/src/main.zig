@@ -20,6 +20,6 @@ const ArrayList = std.ArrayList;
 const Match = game.Match;
 
 pub fn main() !void {
-    const match = try Match.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+    var match = try Match.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
     match.print();
 }
