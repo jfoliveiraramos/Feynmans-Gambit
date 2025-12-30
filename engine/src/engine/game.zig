@@ -16,18 +16,17 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const List = utils.List;
 
-pub const Pos = struct { x: usize, y: usize };
+pub const Pos = packed struct { x: u4, y: u4 };
 
-pub const Piece = struct {
+pub const Piece = packed struct {
     const Self = @This();
-    pub const Type = enum { Pawn, Bishop, Knight, Rook, Queen, King };
-    pub const Colour = enum {
+    pub const Type = enum(u3) { Pawn, Bishop, Knight, Rook, Queen, King };
+    pub const Colour = enum(u1) {
         White,
         Black,
     };
     type: Type,
     colour: Colour,
-    has_moved: bool = false,
 
     pub fn toString(self: *const Piece) u8 {
         const c: u8 = blk: {
@@ -40,7 +39,7 @@ pub const Piece = struct {
                 .King => 'k',
             };
         };
-        return if (self.colour == .White) c else std.ascii.toUpper(c);
+        return if (self.colour == .Black) c else std.ascii.toUpper(c);
     }
 
     pub fn typeFrom(c: u8) Type {
@@ -59,10 +58,14 @@ pub const Piece = struct {
     }
     pub fn colourFrom(c: u8) Colour {
         if (!std.ascii.isAlphabetic(c)) unreachable;
-        return if (std.ascii.isLower(c)) .White else .Black;
+        return if (std.ascii.isLower(c)) .Black else .White;
     }
     pub fn isSameColour(self: *Self, p2: *Piece) bool {
         return self.colour == p2.colour;
+    }
+
+    pub fn promoteTo(self: Self, new_type: Type) Piece {
+        return Self{ .colour = self.colour, .type = new_type };
     }
 };
 
@@ -70,11 +73,10 @@ pub const Board = struct {
     const Self = @This();
     pieces: [64]?Piece,
 
-    pub fn at(self: *Self, x: usize, y: usize) ?*Piece {
-        const idx = (7 - y) * 8 + x;
-        if (self.pieces[idx]) |_| return &self.pieces[idx].?;
-        return null;
+    pub fn at(self: *Self, x: usize, y: usize) ?Piece {
+        return self.pieces[y * 8 + x];
     }
+
     pub fn set(self: *Self, piece: ?Piece, x: usize, y: usize) void {
         self.pieces[y * 8 + x] = piece;
     }
@@ -195,7 +197,7 @@ pub const Match = struct {
                         if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
                         if (fen[i + 1] < '0' or fen[i + 1] > '7') return error.InvalidPosition;
                         if (fen[i + 2] != ' ') return error.UnexpectedChar;
-                        en_passant = .{ .x = fen[i] - 'a', .y = fen[i + 1] - '0' };
+                        en_passant = .{ .x = @intCast(fen[i] - 'a'), .y = @intCast(fen[i + 1] - '0') };
                         i += 3;
                     } else {
                         en_passant = null;
@@ -233,7 +235,7 @@ pub const Match = struct {
         return match;
     }
 
-    pub fn print(self: *const Match) void {
+    pub fn print(self: *Match) void {
         for (0..8) |row| {
             var rowBuf: [8]u8 = .{0} ** 8;
             for (0..8) |col| {

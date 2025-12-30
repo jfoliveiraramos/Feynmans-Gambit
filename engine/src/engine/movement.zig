@@ -25,12 +25,11 @@ const Pos = game.Pos;
 
 pub const Move = struct {
     type: enum { Quiet, Capture, Castling, EnPassant },
-    piece: *Piece,
-    promotion: bool = false,
+    piece: Piece,
     org: Pos,
     dest: Pos,
-
-    capture: ?struct { piece: *Piece, pos: Pos } = null,
+    promotion: ?Piece.Type = null,
+    capture: ?struct { piece: Piece, pos: Pos } = null,
 
     pub fn eq(self: Move, other: Move) bool {
         return self.dest.x == other.dest.x and self.dest.y == other.dest.y and self.promotion == other.promotion and self.type == other.type;
@@ -63,12 +62,12 @@ pub fn executeMove(match: *Match, move: Move) ?Pos {
     if (move.type == .Castling) {
         const rook = match.board.at(move.dest.x, move.dest.y);
         const x: u8 = if (move.dest.x == 7) 6 else 1;
-        match.board.set(rook.?.*, x, move.dest.y);
+        match.board.set(rook, x, move.dest.y);
     }
-    match.board.set(move.piece.*, move.dest.x, move.dest.y);
+    match.board.set(move.piece, move.dest.x, move.dest.y);
 
-    if (move.promotion) {
-        move.piece.type = .Queen;
+    if (move.promotion) |new_type| {
+        match.board.set(move.piece.promoteTo(new_type), move.dest.x, move.dest.y);
     }
     if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
         const previous_en_passant = match.en_passant;
@@ -79,23 +78,21 @@ pub fn executeMove(match: *Match, move: Move) ?Pos {
 }
 
 pub fn undoMove(match: *Match, move: Move, prev_en_passant: ?Pos) void {
-    match.board.set(move.piece.*, move.org.x, move.org.y);
+    const piece = if (move.promotion) |_| move.piece.promoteTo(.Pawn) else move.piece;
 
-    match.board.set(null, move.dest.x, move.dest.y);
+    match.board.set(piece, move.org.x, move.org.y);
 
     if (move.type == .Castling) {
         const x: u8 = if (move.dest.x == 7) 6 else 1;
-        const rook = match.board.at(x, move.dest.y).?;
-        match.board.set(rook.*, move.dest.x, move.dest.y);
+        const rook = match.board.at(x, move.dest.y);
+        match.board.set(rook, move.dest.x, move.dest.y);
         match.board.set(null, x, move.dest.y);
     }
 
     if (move.capture) |capture| {
-        match.board.set(capture.piece.*, capture.pos.x, capture.pos.y);
-    }
-
-    if (move.promotion) {
-        move.piece.type = .Pawn;
+        match.board.set(capture.piece, capture.pos.x, capture.pos.y);
+    } else {
+        match.board.set(null, move.dest.x, move.dest.y);
     }
 
     match.en_passant = prev_en_passant;
@@ -104,12 +101,12 @@ pub fn undoMove(match: *Match, move: Move, prev_en_passant: ?Pos) void {
 fn getPieceMoves(match: *Match, pos: Pos) PieceMoveList {
     if (match.board.at(pos.x, pos.y)) |piece| {
         return switch (piece.type) {
-            .Pawn => getPawnMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
-            .Rook => getRookMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
-            .Bishop => getBishopMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
-            .Knight => getKnightMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
-            .Queen => getQueenMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
-            .King => getKingMoves(match, .{ .x = pos.x, .y = pos.y }, piece),
+            .Pawn => getPawnMoves(match, pos, piece),
+            .Rook => getRookMoves(match, pos, piece),
+            .Bishop => getBishopMoves(match, pos, piece),
+            .Knight => getKnightMoves(match, pos, piece),
+            .Queen => getQueenMoves(match, pos, piece),
+            .King => getKingMoves(match, pos, piece),
         };
     }
     return PieceMoveList{};
@@ -120,11 +117,11 @@ pub fn getPiecePlayableMoves(match: *Match, pos: Pos) PieceMoveList {
     return filterMoves(match, MAX_PIECE_MOVES, pieceMoves);
 }
 
-fn hasPawnMoved(piece: *const Piece, y: usize) bool {
-    return (piece.colour == .Black and y != 1) or (piece.colour == .White and y != 6);
+fn hasPawnMoved(piece: Piece, y: usize) bool {
+    return (piece.colour == .White and y != 6) or (piece.colour == .Black and y != 1);
 }
 
-fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
     var moves = PieceMoveList{};
 
     const vdir: i8 = if (piece.colour == .White) -1 else 1;
@@ -140,16 +137,25 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
         if (new_y < 0 or new_y >= 8) break;
         const uy: usize = @intCast(new_y);
         if (match.board.at(pos.x, uy) == null) {
-            _ = moves.append(.{
+            var move = Move{
                 .piece = piece,
                 .type = .Quiet,
-                .promotion = uy == 0 or uy == 7,
+                .promotion = null,
                 .org = pos,
                 .dest = .{
-                    .x = pos.x,
-                    .y = uy,
+                    .x = @intCast(pos.x),
+                    .y = @intCast(uy),
                 },
-            });
+            };
+            if (uy == 0 or uy == 7) {
+                const promotable: [4]Piece.Type = .{ .Queen, .Rook, .Bishop, .Knight };
+                for (promotable) |piece_type| {
+                    move.promotion = piece_type;
+                    _ = moves.append(move);
+                }
+            } else {
+                _ = moves.append(move);
+            }
         }
     }
 
@@ -161,23 +167,31 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
         const uy: usize = @intCast(new_y);
         if (match.board.at(ux, uy)) |target| {
             if (target.colour != piece.colour) {
-                _ = moves.append(.{
+                var move = Move{
                     .piece = piece,
                     .type = .Capture,
                     .capture = .{
                         .piece = target,
                         .pos = .{
-                            .x = ux,
-                            .y = uy,
+                            .x = @intCast(ux),
+                            .y = @intCast(uy),
                         },
                     },
-                    .promotion = uy == 0 or uy == 7,
                     .org = pos,
                     .dest = .{
-                        .x = ux,
-                        .y = uy,
+                        .x = @intCast(ux),
+                        .y = @intCast(uy),
                     },
-                });
+                };
+                if (uy == 0 or uy == 7) {
+                    const promotable: [4]Piece.Type = .{ .Queen, .Rook, .Bishop, .Knight };
+                    for (promotable) |piece_type| {
+                        move.promotion = piece_type;
+                        _ = moves.append(move);
+                    }
+                } else {
+                    _ = moves.append(move);
+                }
             }
         }
         if (match.en_passant) |en_passant_pos| {
@@ -188,15 +202,14 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
                     .capture = .{
                         .piece = target,
                         .pos = .{
-                            .x = ux,
-                            .y = pos.y,
+                            .x = @intCast(ux),
+                            .y = @intCast(pos.y),
                         },
                     },
-                    .promotion = uy == 0 or uy == 7,
                     .org = pos,
                     .dest = .{
-                        .x = ux,
-                        .y = uy,
+                        .x = @intCast(ux),
+                        .y = @intCast(uy),
                     },
                 });
             }
@@ -205,7 +218,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
     return moves;
 }
 
-fn getRookMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+fn getRookMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
     return getMovesInDirections(
         match,
         pos,
@@ -214,7 +227,7 @@ fn getRookMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
         false,
     );
 }
-fn getBishopMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+fn getBishopMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
     return getMovesInDirections(
         match,
         pos,
@@ -224,7 +237,7 @@ fn getBishopMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
     );
 }
 
-fn getKnightMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+fn getKnightMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
     return getMovesInDirections(
         match,
         pos,
@@ -243,8 +256,8 @@ fn getKnightMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
     );
 }
 
-fn getQueenMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
-    return getMovesInDirections(
+fn getQueenMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
+    const moves = getMovesInDirections(
         match,
         pos,
         piece,
@@ -260,9 +273,11 @@ fn getQueenMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
         },
         false,
     );
+
+    return moves;
 }
 
-fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
+fn getKingMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
     var moves = getMovesInDirections(
         match,
         pos,
@@ -284,7 +299,7 @@ fn getKingMoves(match: *Match, pos: Pos, piece: *Piece) PieceMoveList {
     return moves;
 }
 
-fn getMovesInDirections(match: *Match, pos: Pos, piece: *Piece, directions: []const [2]i8, limited: bool) PieceMoveList {
+fn getMovesInDirections(match: *Match, pos: Pos, piece: Piece, directions: []const [2]i8, limited: bool) PieceMoveList {
     var moves = PieceMoveList{};
     for (directions) |dpos| {
         var i: i8 = 1;
@@ -301,10 +316,10 @@ fn getMovesInDirections(match: *Match, pos: Pos, piece: *Piece, directions: []co
                         .piece = piece,
                         .type = .Capture,
                         .org = pos,
-                        .dest = .{ .x = ux, .y = uy },
+                        .dest = .{ .x = @intCast(ux), .y = @intCast(uy) },
                         .capture = .{
                             .piece = target,
-                            .pos = .{ .x = ux, .y = uy },
+                            .pos = .{ .x = @intCast(ux), .y = @intCast(uy) },
                         },
                     });
                 }
@@ -315,7 +330,7 @@ fn getMovesInDirections(match: *Match, pos: Pos, piece: *Piece, directions: []co
                         .piece = piece,
                         .type = .Quiet,
                         .org = pos,
-                        .dest = .{ .x = ux, .y = uy },
+                        .dest = .{ .x = @intCast(ux), .y = @intCast(uy) },
                     },
                 );
             }
@@ -327,7 +342,7 @@ fn getMovesInDirections(match: *Match, pos: Pos, piece: *Piece, directions: []co
     return moves;
 }
 
-fn getCastling(match: *Match, pos: Pos, king: *Piece) PieceMoveList {
+fn getCastling(match: *Match, pos: Pos, king: Piece) PieceMoveList {
     var moves = PieceMoveList{};
 
     for ([2]usize{ 0, 7 }) |x| {
@@ -351,8 +366,8 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) PieceMoveList {
 
                 const king_move: Move = .{
                     .type = .Quiet,
-                    .dest = .{ .x = curr, .y = pos.y },
-                    .org = .{ .x = pos.x, .y = pos.y },
+                    .dest = .{ .x = @intCast(curr), .y = @intCast(pos.y) },
+                    .org = .{ .x = @intCast(pos.x), .y = @intCast(pos.y) },
                     .piece = king,
                 };
                 if (!validMove(match, king_move)) {
@@ -364,7 +379,7 @@ fn getCastling(match: *Match, pos: Pos, king: *Piece) PieceMoveList {
             if (can_castle) {
                 _ = moves.append(.{
                     .type = .Castling,
-                    .dest = .{ .x = x, .y = pos.y },
+                    .dest = .{ .x = @intCast(x), .y = @intCast(pos.y) },
                     .org = pos,
                     .piece = king,
                 });
@@ -402,13 +417,13 @@ fn validMove(match: *Match, move: Move) bool {
     return valid;
 }
 
-fn check(match: *Match, colour: Colour) bool {
+pub fn check(match: *Match, colour: Colour) bool {
     for (match.board.pieces, 0..) |spot, i| {
         if (spot) |piece| {
             if (piece.colour != colour) {
                 const moves = getPieceMoves(match, .{
-                    .x = i % 8,
-                    .y = i / 8,
+                    .x = @intCast(i % 8),
+                    .y = @intCast(i / 8),
                 });
 
                 for (moves.items()) |move| {
@@ -427,8 +442,8 @@ fn cantPlay(match: *Match, colour: Colour) bool {
         if (spot) |piece| {
             if (piece.colour == colour) {
                 const moves = getPieceMoves(match, .{
-                    .x = i % 8,
-                    .y = i / 8,
+                    .x = @intCast(i % 8),
+                    .y = @intCast(i / 8),
                 });
 
                 for (moves.items()) |move| {
