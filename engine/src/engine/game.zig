@@ -16,7 +16,14 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const List = utils.List;
 
-pub const Pos = packed struct { x: u4, y: u4 };
+pub const Pos = packed struct {
+    const Self = @This();
+    x: u4,
+    y: u4,
+    pub fn eq(self: *const Self, other: Self) bool {
+        return self.x == other.x and self.y == other.y;
+    }
+};
 
 pub const Piece = packed struct {
     const Self = @This();
@@ -24,6 +31,10 @@ pub const Piece = packed struct {
     pub const Colour = enum(u1) {
         White,
         Black,
+
+        pub fn opposite(self: Colour) Colour {
+            return if (self == .White) .Black else .White;
+        }
     };
     type: Type,
     colour: Colour,
@@ -57,7 +68,10 @@ pub const Piece = packed struct {
         };
     }
     pub fn colourFrom(c: u8) Colour {
-        if (!std.ascii.isAlphabetic(c)) unreachable;
+        if (!std.ascii.isAlphabetic(c)) {
+            std.debug.print("Unreachable character: {c}\n", .{c});
+            unreachable;
+        }
         return if (std.ascii.isLower(c)) .Black else .White;
     }
     pub fn isSameColour(self: *Self, p2: *Piece) bool {
@@ -77,8 +91,16 @@ pub const Board = struct {
         return self.pieces[y * 8 + x];
     }
 
+    pub inline fn atPos(self: *Self, pos: Pos) ?Piece {
+        return self.at(pos.x, pos.y);
+    }
+
     pub fn set(self: *Self, piece: ?Piece, x: usize, y: usize) void {
         self.pieces[y * 8 + x] = piece;
+    }
+
+    pub inline fn setPos(self: *Self, piece: ?Piece, pos: Pos) void {
+        self.set(piece, pos.x, pos.y);
     }
 };
 
@@ -89,13 +111,20 @@ pub const Castling = enum(u4) {
     BlackQueen = 1 << 3,
 };
 
+pub const FULL_CASTLING_RIGHTS = @intFromEnum(Castling.WhiteKing) |
+    @intFromEnum(Castling.WhiteQueen) |
+    @intFromEnum(Castling.BlackKing) |
+    @intFromEnum(Castling.BlackQueen);
+
+pub const CastlingRights = u4;
+
 pub const Match = struct {
     const Self = @This();
     const PieceList = List(Piece, 32);
 
     board: Board,
     turn: Piece.Colour,
-    castle_availability: u4,
+    castling_rights: u4,
     en_passant: ?Pos,
 
     const FenError = error{
@@ -113,10 +142,7 @@ pub const Match = struct {
         return Self{
             .board = .{ .pieces = .{null} ** 64 },
             .turn = .White,
-            .castle_availability = @intFromEnum(Castling.WhiteKing) |
-                @intFromEnum(Castling.WhiteQueen) |
-                @intFromEnum(Castling.BlackKing) |
-                @intFromEnum(Castling.BlackQueen),
+            .castling_rights = FULL_CASTLING_RIGHTS,
             .en_passant = null,
         };
     }
@@ -210,7 +236,7 @@ pub const Match = struct {
         return Self{
             .board = board,
             .turn = turn,
-            .castle_availability = castle_availability,
+            .castling_rights = castle_availability,
             .en_passant = en_passant,
         };
     }

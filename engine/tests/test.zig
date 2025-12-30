@@ -26,29 +26,25 @@ test "initial pawn movement" {
     var match = try game.Match.default();
     var correct_moves = moves.PieceMoveList{};
     _ = correct_moves.append(.{
-        .type = .Quiet,
         .org = .{
             .x = 0,
             .y = 1,
         },
-        .dest = .{
+        .dst = .{
             .x = 0,
             .y = 2,
         },
-        .piece = match.board.at(0, 1).?,
     });
 
     _ = correct_moves.append(.{
-        .type = .Quiet,
         .org = .{
             .x = 0,
             .y = 1,
         },
-        .dest = .{
+        .dst = .{
             .x = 0,
             .y = 3,
         },
-        .piece = match.board.at(0, 1).?,
     });
 
     const movements = moves.getPiecePlayableMoves(
@@ -87,14 +83,8 @@ test "game: checkmate detection" {
     var m3 = try game.Match.fromFEN("6rk/6pp/7N/8/8/8/8/6K1 b - - 0 1");
     try std.testing.expect(!moves.checkmate(&m3, .Black));
     _ = moves.executeMove(&m3, .{
-        .capture = null,
-        .piece = .{
-            .colour = .White,
-            .type = .Knight,
-        },
-        .type = .Quiet,
         .org = .{ .x = 7, .y = 2 },
-        .dest = .{ .x = 5, .y = 1 },
+        .dst = .{ .x = 5, .y = 1 },
     });
     try std.testing.expect(moves.checkmate(&m3, .Black));
 
