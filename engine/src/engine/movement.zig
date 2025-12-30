@@ -23,26 +23,22 @@ const Piece = game.Piece;
 const Colour = Piece.Colour;
 const Pos = game.Pos;
 
-pub const Move = struct {
-    type: enum { Quiet, Capture, Castling, EnPassant },
-    piece: Piece,
+pub const Undo = struct {
+    captured: ?Piece,
+    promoted: bool,
+    en_passant: ?Pos,
+    castling_rights: u4,
+};
+
+pub const Move = packed struct {
     org: Pos,
-    dest: Pos,
-    promotion: ?Piece.Type = null,
-    capture: ?struct { piece: Piece, pos: Pos } = null,
+    dst: Pos,
+    promotion: Piece.Type = .Queen,
+    castling: bool = false,
+    en_passant: bool = false,
 
     pub fn eq(self: Move, other: Move) bool {
-        return self.dest.x == other.dest.x and self.dest.y == other.dest.y and self.promotion == other.promotion and self.type == other.type;
-    }
-
-    pub fn print(self: Move) void {
-        const move_type = switch (self.type) {
-            .Quiet => "Move",
-            .Capture => "Capture",
-            .Castling => "Castling",
-            .EnPassant => "EnPassant",
-        };
-        std.debug.print("{s}: ({},{})\n", .{ move_type, self.dest.x, self.dest.y });
+        return self.org.eq(other.org) and self.dst.eq(other.dst) and self.promotion == other.promotion;
     }
 };
 
@@ -52,50 +48,65 @@ const MAX_MOVES = 256;
 pub const PieceMoveList = List(Move, MAX_PIECE_MOVES);
 pub const MoveList = List(Move, MAX_MOVES);
 
-pub fn executeMove(match: *Match, move: Move) ?Pos {
+pub fn executeMove(match: *Match, move: Move) Undo {
+    var board = &match.board;
+    const piece = board.atPos(move.org) orelse unreachable;
+    const captured = board.atPos(move.dst);
+
     match.board.set(null, move.org.x, move.org.y);
 
-    if (move.capture) |capture| {
-        match.board.set(null, capture.pos.x, capture.pos.y);
+    if (move.castling) {
+        const rook = match.board.at(move.dst.x, move.dst.y);
+        const x: u8 = if (move.dst.x == 7) 6 else 1;
+        match.board.set(rook, x, move.dst.y);
     }
 
-    if (move.type == .Castling) {
-        const rook = match.board.at(move.dest.x, move.dest.y);
-        const x: u8 = if (move.dest.x == 7) 6 else 1;
-        match.board.set(rook, x, move.dest.y);
+    if (move.en_passant) {
+        match.board.set(null, move.dst.x, move.org.y);
     }
-    match.board.set(move.piece, move.dest.x, move.dest.y);
 
-    if (move.promotion) |new_type| {
-        match.board.set(move.piece.promoteTo(new_type), move.dest.x, move.dest.y);
+    const promoted = (move.dst.y == 0 or move.dst.y == 7) and piece.type == .Pawn;
+    if (promoted) {
+        match.board.set(piece.promoteTo(move.promotion), move.dst.x, move.dst.y);
     }
-    if (move.piece.type == .Pawn and @abs(@as(i8, @intCast(move.dest.y)) - @as(i8, @intCast(move.org.y))) == 2) {
-        const previous_en_passant = match.en_passant;
-        match.en_passant = move.dest;
-        return previous_en_passant;
-    }
-    return null;
+
+    match.board.set(piece, move.dst.x, move.dst.y);
+
+    return Undo{
+        .captured = captured,
+        .promoted = promoted,
+        .en_passant = match.en_passant,
+        .castling_rights = match.castling_rights,
+    };
 }
 
-pub fn undoMove(match: *Match, move: Move, prev_en_passant: ?Pos) void {
-    const piece = if (move.promotion) |_| move.piece.promoteTo(.Pawn) else move.piece;
+pub fn undoMove(match: *Match, move: Move, undo: Undo) void {
+    var board = &match.board;
+    const piece = blk: {
+        const piece = board.atPos(move.dst) orelse unreachable;
+        if (undo.promoted) break :blk piece.promoteTo(.Pawn);
+        break :blk piece;
+    };
 
-    match.board.set(piece, move.org.x, move.org.y);
+    board.setPos(piece, move.org);
 
-    if (move.type == .Castling) {
-        const x: u8 = if (move.dest.x == 7) 6 else 1;
-        const rook = match.board.at(x, move.dest.y);
-        match.board.set(rook, move.dest.x, move.dest.y);
-        match.board.set(null, x, move.dest.y);
-    }
-
-    if (move.capture) |capture| {
-        match.board.set(capture.piece, capture.pos.x, capture.pos.y);
+    if (move.en_passant) {
+        board.set(Piece{
+            .type = .Pawn,
+            .colour = piece.colour.opposite(),
+        }, move.dst.x, move.org.y);
+    } else if (move.castling) {
+        const x: u8 = if (move.dst.x == 7) 6 else 1;
+        const rook = board.at(x, move.dst.y);
+        board.setPos(rook, move.dst);
+        board.set(null, x, move.dst.y);
+    } else if (undo.captured) |captured| {
+        board.setPos(captured, move.dst);
     } else {
-        match.board.set(null, move.dest.x, move.dest.y);
+        board.setPos(null, move.dst);
     }
 
-    match.en_passant = prev_en_passant;
+    match.en_passant = undo.en_passant;
 }
 
 fn getPieceMoves(match: *Match, pos: Pos) PieceMoveList {
@@ -118,7 +129,7 @@ pub fn getPiecePlayableMoves(match: *Match, pos: Pos) PieceMoveList {
 }
 
 fn hasPawnMoved(piece: Piece, y: usize) bool {
-    return (piece.colour == .White and y != 6) or (piece.colour == .Black and y != 1);
+    return (piece.colour == .White and y != 1);
 }
 
 fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
@@ -138,11 +149,8 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
         const uy: usize = @intCast(new_y);
         if (match.board.at(pos.x, uy) == null) {
             var move = Move{
-                .piece = piece,
-                .type = .Quiet,
-                .promotion = null,
                 .org = pos,
-                .dest = .{
+                .dst = .{
                     .x = @intCast(pos.x),
                     .y = @intCast(uy),
                 },
@@ -168,17 +176,8 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
         if (match.board.at(ux, uy)) |target| {
             if (target.colour != piece.colour) {
                 var move = Move{
-                    .piece = piece,
-                    .type = .Capture,
-                    .capture = .{
-                        .piece = target,
-                        .pos = .{
-                            .x = @intCast(ux),
-                            .y = @intCast(uy),
-                        },
-                    },
                     .org = pos,
-                    .dest = .{
+                    .dst = .{
                         .x = @intCast(ux),
                         .y = @intCast(uy),
                     },
@@ -195,22 +194,14 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
             }
         }
         if (match.en_passant) |en_passant_pos| {
-            if (match.board.at(en_passant_pos.x, en_passant_pos.y)) |target| {
+            if (en_passant_pos.x == ux and en_passant_pos.y == pos.y) {
                 _ = moves.append(.{
-                    .piece = piece,
-                    .type = .EnPassant,
-                    .capture = .{
-                        .piece = target,
-                        .pos = .{
-                            .x = @intCast(ux),
-                            .y = @intCast(pos.y),
-                        },
-                    },
                     .org = pos,
-                    .dest = .{
+                    .dst = .{
                         .x = @intCast(ux),
                         .y = @intCast(uy),
                     },
+                    .en_passant = true,
                 });
             }
         }
@@ -313,24 +304,16 @@ fn getMovesInDirections(match: *Match, pos: Pos, piece: Piece, directions: []con
             if (match.board.at(ux, uy)) |target| {
                 if (target.colour != piece.colour) {
                     _ = moves.append(.{
-                        .piece = piece,
-                        .type = .Capture,
                         .org = pos,
-                        .dest = .{ .x = @intCast(ux), .y = @intCast(uy) },
-                        .capture = .{
-                            .piece = target,
-                            .pos = .{ .x = @intCast(ux), .y = @intCast(uy) },
-                        },
+                        .dst = .{ .x = @intCast(ux), .y = @intCast(uy) },
                     });
                 }
                 break;
             } else {
                 _ = moves.append(
                     .{
-                        .piece = piece,
-                        .type = .Quiet,
                         .org = pos,
-                        .dest = .{ .x = @intCast(ux), .y = @intCast(uy) },
+                        .dst = .{ .x = @intCast(ux), .y = @intCast(uy) },
                     },
                 );
             }
@@ -349,7 +332,7 @@ fn getCastling(match: *Match, pos: Pos, king: Piece) PieceMoveList {
         const shift: u2 = (if (x == 0) @as(u2, 1) else 0) + (if (king.colour == .White) @as(u2, 0) else 2);
         const flag: u4 = @as(u4, 1) << shift;
 
-        if ((flag & match.castle_availability) == 0) continue;
+        if ((flag & match.castling_rights) == 0) continue;
         if (match.board.at(x, pos.y)) |rook| {
             if (rook.type != .Rook) continue;
             if (rook.colour != king.colour) continue;
@@ -365,10 +348,8 @@ fn getCastling(match: *Match, pos: Pos, king: Piece) PieceMoveList {
                 }
 
                 const king_move: Move = .{
-                    .type = .Quiet,
-                    .dest = .{ .x = @intCast(curr), .y = @intCast(pos.y) },
+                    .dst = .{ .x = @intCast(curr), .y = @intCast(pos.y) },
                     .org = .{ .x = @intCast(pos.x), .y = @intCast(pos.y) },
-                    .piece = king,
                 };
                 if (!validMove(match, king_move)) {
                     can_castle = false;
@@ -378,10 +359,9 @@ fn getCastling(match: *Match, pos: Pos, king: Piece) PieceMoveList {
 
             if (can_castle) {
                 _ = moves.append(.{
-                    .type = .Castling,
-                    .dest = .{ .x = @intCast(x), .y = @intCast(pos.y) },
+                    .dst = .{ .x = @intCast(x), .y = @intCast(pos.y) },
                     .org = pos,
-                    .piece = king,
+                    .castling = true,
                 });
             }
         }
@@ -411,9 +391,9 @@ fn filterMoves(
 }
 
 fn validMove(match: *Match, move: Move) bool {
-    const prev_en_passant = executeMove(match, move);
+    const undo = executeMove(match, move);
     const valid = !check(match, match.turn);
-    undoMove(match, move, prev_en_passant);
+    undoMove(match, move, undo);
     return valid;
 }
 
@@ -427,8 +407,8 @@ pub fn check(match: *Match, colour: Colour) bool {
                 });
 
                 for (moves.items()) |move| {
-                    if (move.capture) |capture| {
-                        if (capture.piece.type == .King) return true;
+                    if (match.board.atPos(move.dst)) |captured| {
+                        if (captured.type == .King) return true;
                     }
                 }
             }
