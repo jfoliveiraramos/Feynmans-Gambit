@@ -23,6 +23,15 @@ pub const Pos = packed struct {
     pub fn eq(self: *const Self, other: Self) bool {
         return self.x == other.x and self.y == other.y;
     }
+
+    pub fn from(i: usize) error{OutOfBoard}!Self {
+        if (i >= 64) return error.OutOfBoard;
+        return .{ .x = @intCast(i % 8), .y = @intCast(i / 8) };
+    }
+
+    pub fn toIdx(self: *const Self) u6 {
+        return self.y * 8 + self.x;
+    }
 };
 
 pub const Piece = packed struct {
@@ -134,8 +143,8 @@ pub const Match = struct {
         InvalidPosition,
     };
 
-    pub fn default() FenError!Self {
-        return Self.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+    pub fn default() Self {
+        return Self.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -") catch unreachable;
     }
 
     pub fn empty() Self {

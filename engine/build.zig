@@ -19,6 +19,7 @@ const std = @import("std");
 // runner.
 pub fn build(b: *std.Build) void {
     const engine_module = b.addModule("engine", .{ .root_source_file = b.path("src/engine.zig") });
+    const bindings_module = b.addModule("bindings", .{ .root_source_file = b.path("src/binding.zig") });
 
     const target = b.standardTargetOptions(.{});
 
@@ -55,9 +56,27 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe_unit_tests.root_module.addImport("engine", engine_module);
+    exe_unit_tests.root_module.addImport("bindings", bindings_module);
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
+
+    const lib = b.addLibrary(.{
+        .name = "engine",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/lib.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
+    });
+
+    const engine_lib_install_step = b.addInstallArtifact(lib, .{});
+    lib.root_module.addImport("engine", engine_module);
+    lib.linkLibC();
+    const engine_lib_step = b.step("lib", "Build engine bindings library");
+    engine_lib_step.dependOn(&lib.step);
+    engine_lib_step.dependOn(&engine_lib_install_step.step);
 }
