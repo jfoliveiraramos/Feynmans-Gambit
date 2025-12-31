@@ -43,7 +43,7 @@ pub const Move = packed struct {
 };
 
 const MAX_PIECE_MOVES = 27;
-const MAX_MOVES = 256;
+pub const MAX_MOVES = 256;
 
 pub const PieceMoveList = List(Move, MAX_PIECE_MOVES);
 pub const MoveList = List(Move, MAX_MOVES);
@@ -83,6 +83,8 @@ pub fn executeMove(match: *Match, move: Move) Undo {
 pub fn undoMove(match: *Match, move: Move, undo: Undo) void {
     var board = &match.board;
     const piece = blk: {
+        std.debug.print("Pos {any}\n", .{move.org});
+        match.print();
         const piece = board.atPos(move.dst) orelse unreachable;
         if (undo.promoted) break :blk piece.promoteTo(.Pawn);
         break :blk piece;
