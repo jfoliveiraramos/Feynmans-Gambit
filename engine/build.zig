@@ -68,13 +68,14 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/lib.zig"),
             .target = target,
             .optimize = optimize,
+            .pic = true,
         }),
         .linkage = .static,
     });
 
     const engine_lib_install_step = b.addInstallArtifact(lib, .{});
     lib.root_module.addImport("engine", engine_module);
-    lib.linkLibC();
+
     const engine_lib_step = b.step("lib", "Build engine bindings library");
     engine_lib_step.dependOn(&lib.step);
     engine_lib_step.dependOn(&engine_lib_install_step.step);

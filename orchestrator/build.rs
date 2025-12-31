@@ -18,4 +18,5 @@ fn main() {
 
     // Re-run if Zig lib changes
     println!("cargo:rerun-if-changed=../engine/src");
+    println!("cargo:rerun-if-changed=../engine/build.zig");
 }
