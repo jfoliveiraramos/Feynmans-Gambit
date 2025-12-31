@@ -19,7 +19,7 @@ const std = @import("std");
 // runner.
 pub fn build(b: *std.Build) void {
     const engine_module = b.addModule("engine", .{ .root_source_file = b.path("src/engine.zig") });
-    const bindings_module = b.addModule("bindings", .{ .root_source_file = b.path("src/binding.zig") });
+    _ = b.addModule("lib", .{ .root_source_file = b.path("src/lib.zig") });
 
     const target = b.standardTargetOptions(.{});
 
@@ -56,7 +56,6 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe_unit_tests.root_module.addImport("engine", engine_module);
-    exe_unit_tests.root_module.addImport("bindings", bindings_module);
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 

@@ -16,50 +16,94 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const List = utils.List;
 
-pub const Pos = packed struct {
+pub const Pos = packed struct(u8) {
     const Self = @This();
-    x: u4,
-    y: u4,
-    pub fn eq(self: *const Self, other: Self) bool {
-        return self.x == other.x and self.y == other.y;
+
+    val: u8,
+
+    pub const none = Self{ .val = 0xFF };
+
+    pub fn fromIndex(idx: usize) Self {
+        return .{ .val = @intCast(idx) };
     }
 
-    pub fn from(i: usize) error{OutOfBoard}!Self {
-        if (i >= 64) return error.OutOfBoard;
-        return .{ .x = @intCast(i % 8), .y = @intCast(i / 8) };
+    pub fn fromXY(x: u3, y: u3) Self {
+        return .{ .val = @as(u8, y) * 8 + x };
     }
 
-    pub fn toIdx(self: *const Self) u6 {
-        return self.y * 8 + self.x;
+    pub fn isNone(self: Self) bool {
+        return self.val > 63;
+    }
+
+    pub fn coords(self: Self) struct { x: u3, y: u3 } {
+        return .{ .x = @intCast(self.val % 8), .y = @intCast(self.val / 8) };
+    }
+
+    pub fn eq(self: Pos, other: Pos) bool {
+        return self.val == other.val;
     }
 };
 
-pub const Piece = packed struct {
-    const Self = @This();
-    pub const Type = enum(u3) { Pawn, Bishop, Knight, Rook, Queen, King };
-    pub const Colour = enum(u1) {
-        White,
-        Black,
+pub const Colour = enum(u8) {
+    White = 0,
+    Black = 1,
 
-        pub fn opposite(self: Colour) Colour {
-            return if (self == .White) .Black else .White;
-        }
+    pub fn opposite(self: Colour) Colour {
+        return if (self == .White) .Black else .White;
+    }
+};
+
+pub const Piece = packed struct(u8) {
+    const Self = @This();
+    pub const Type = enum(u4) {
+        None = 0,
+        Pawn,
+        Bishop,
+        Knight,
+        Rook,
+        Queen,
+        King,
     };
     type: Type,
-    colour: Colour,
+    colour: u1 = 0,
+    _: u3 = 0,
 
-    pub fn toString(self: *const Piece) u8 {
-        const c: u8 = blk: {
-            break :blk switch (self.type) {
-                .Pawn => 'p',
-                .Rook => 'r',
-                .Knight => 'n',
-                .Bishop => 'b',
-                .Queen => 'q',
-                .King => 'k',
-            };
+    pub const empty = Self{
+        .type = .None,
+    };
+
+    pub fn new(piece_type: Type, piece_colour: Colour) Self {
+        return Self{ .type = piece_type, .colour = @intCast(@intFromEnum(piece_colour)) };
+    }
+
+    pub fn isColour(self: Self, colour: Colour) bool {
+        return self.colour == @intFromEnum(colour);
+    }
+
+    pub fn isWhite(self: Self) bool {
+        return self.isColour(Colour.White);
+    }
+
+    pub fn isBlack(self: Self) bool {
+        return self.isColour(Colour.Black);
+    }
+
+    pub fn oppositeColour(self: Self) Colour {
+        return @as(Colour, @enumFromInt(self.colour)).opposite();
+    }
+
+    pub fn toString(self: Self) u8 {
+        const c: u8 = switch (self.type) {
+            .None => '.',
+            .Pawn => 'p',
+            .Rook => 'r',
+            .Knight => 'n',
+            .Bishop => 'b',
+            .Queen => 'q',
+            .King => 'k',
         };
-        return if (self.colour == .Black) c else std.ascii.toUpper(c);
+
+        return if (self.isBlack()) c else std.ascii.toUpper(c);
     }
 
     pub fn typeFrom(c: u8) Type {
@@ -83,7 +127,7 @@ pub const Piece = packed struct {
         }
         return if (std.ascii.isLower(c)) .Black else .White;
     }
-    pub fn isSameColour(self: *Self, p2: *Piece) bool {
+    pub fn isSameColour(self: Self, p2: Piece) bool {
         return self.colour == p2.colour;
     }
 
@@ -92,24 +136,17 @@ pub const Piece = packed struct {
     }
 };
 
-pub const Board = struct {
+pub const Board = extern struct {
     const Self = @This();
-    pieces: [64]?Piece,
 
-    pub fn at(self: *Self, x: usize, y: usize) ?Piece {
-        return self.pieces[y * 8 + x];
+    pieces: [64]Piece,
+
+    pub inline fn at(self: *Self, pos: Pos) Piece {
+        return self.pieces[pos.val];
     }
 
-    pub inline fn atPos(self: *Self, pos: Pos) ?Piece {
-        return self.at(pos.x, pos.y);
-    }
-
-    pub fn set(self: *Self, piece: ?Piece, x: usize, y: usize) void {
-        self.pieces[y * 8 + x] = piece;
-    }
-
-    pub inline fn setPos(self: *Self, piece: ?Piece, pos: Pos) void {
-        self.set(piece, pos.x, pos.y);
+    pub fn set(self: *Self, piece: Piece, pos: Pos) void {
+        self.pieces[pos.val] = piece;
     }
 };
 
@@ -127,14 +164,14 @@ pub const FULL_CASTLING_RIGHTS = @intFromEnum(Castling.WhiteKing) |
 
 pub const CastlingRights = u4;
 
-pub const Match = struct {
+pub const Match = extern struct {
     const Self = @This();
     const PieceList = List(Piece, 32);
 
     board: Board,
-    turn: Piece.Colour,
-    castling_rights: u4,
-    en_passant: ?Pos,
+    turn: Colour,
+    castling_rights: u8,
+    en_passant: Pos,
 
     const FenError = error{
         InvalidRowCount,
@@ -156,10 +193,10 @@ pub const Match = struct {
         };
     }
     pub fn fromFEN(fen: []const u8) FenError!Self {
-        var board: Board = .{ .pieces = .{null} ** 64 };
-        var turn: Piece.Colour = undefined;
+        var board: Board = .{ .pieces = .{Piece.empty} ** 64 };
+        var turn: Colour = undefined;
         var castle_availability: u4 = 0;
-        var en_passant: ?Pos = undefined;
+        var en_passant: Pos = undefined;
         const State = enum {
             PiecePlacement,
             ActiveColor,
@@ -174,8 +211,8 @@ pub const Match = struct {
         while (state != .End and i < fen.len) {
             switch (state) {
                 .PiecePlacement => {
-                    var row: usize = 0;
-                    var col: usize = 0;
+                    var row: u8 = 0;
+                    var col: u8 = 0;
                     for (fen, 0..) |c, index| {
                         switch (c) {
                             '/' => {
@@ -189,7 +226,10 @@ pub const Match = struct {
                             'a'...'z', 'A'...'Z' => {
                                 const piece_colour = Piece.colourFrom(c);
                                 const piece_type = Piece.typeFrom(c);
-                                board.set(.{ .type = piece_type, .colour = piece_colour }, col, row);
+                                board.set(
+                                    Piece.new(piece_type, piece_colour),
+                                    Pos.fromXY(@intCast(col), @intCast(row)),
+                                );
                                 col += 1;
                             },
                             ' ' => {
@@ -232,10 +272,10 @@ pub const Match = struct {
                         if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
                         if (fen[i + 1] < '0' or fen[i + 1] > '7') return error.InvalidPosition;
                         if (fen[i + 2] != ' ') return error.UnexpectedChar;
-                        en_passant = .{ .x = @intCast(fen[i] - 'a'), .y = @intCast(fen[i + 1] - '0') };
+                        en_passant = Pos.fromXY(@intCast(fen[i] - 'a'), @intCast(fen[i + 1] - '0'));
                         i += 3;
                     } else {
-                        en_passant = null;
+                        en_passant = Pos.none;
                     }
                     state = .End;
                 },
@@ -274,12 +314,10 @@ pub const Match = struct {
         for (0..8) |row| {
             var rowBuf: [8]u8 = .{0} ** 8;
             for (0..8) |col| {
-                const occupant = self.board.at(col, row);
-                if (occupant) |piece| {
-                    rowBuf[col] = piece.toString();
-                } else {
-                    rowBuf[col] = '.';
-                }
+                const piece = self.board.at(
+                    Pos.fromXY(@intCast(col), @intCast(row)),
+                );
+                rowBuf[col] = piece.toString();
             }
             std.debug.print("{s}\n", .{rowBuf});
         }
