@@ -2,28 +2,88 @@ use std::ffi::c_int;
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct MatchFFI {
+pub struct Match {
     pub board: [u8; 64],
     pub turn: u8,
     pub castling_rights: u8,
     pub en_passant: u8,
 }
 
-#[repr(C)]
-pub struct MoveFFI {
-    org: u8,
-    dst: u8,
-    flags: u8,
-    promo: u8,
+impl Match {
+    pub fn empty() -> Self {
+        Self {
+            board: [0u8; 64],
+            turn: 0,
+            castling_rights: 0,
+            en_passant: 0,
+        }
+    }
+
+    pub fn from_fen(fen: &str) -> Self {
+        let mut r#match = Self::empty();
+        unsafe {
+            create_match(&mut r#match, fen.as_ptr(), fen.len());
+        }
+        r#match
+    }
 }
 
+impl Default for Match {
+    fn default() -> Self {
+        let mut r#match = Self::empty();
+        unsafe {
+            create_default_match(&mut r#match);
+        }
+        r#match
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct Move {
+    pub org: u8,
+    pub dst: u8,
+    pub flag: u8,
+}
+
+impl Default for Move {
+    fn default() -> Self {
+        Self {
+            org: 255, // Using 255 as a "sentinel" value for empty
+            dst: 255,
+            flag: 0,
+        }
+    }
+}
+
+#[link(name = "engine")]
 unsafe extern "C" {
-    pub fn create_default_match() -> MatchFFI;
-    pub fn generate_moves(match_ffi: *mut MatchFFI, out: *mut MoveFFI, idx: u8) -> c_int;
-    pub fn execute_move(match_ffi: *mut MatchFFI, move_ffi: MoveFFI) -> c_int;
+    pub fn create_default_match(match_ptr: *mut Match) -> c_int;
+    pub fn create_match(match_ptr: *mut Match, fen_ptr: *const u8, fen_len: usize) -> c_int;
+    pub fn generate_moves(
+        match_ptr: *const Match,
+        out_ptr: *mut Move,
+        capacity: usize,
+        idx: u8,
+    ) -> c_int;
+    pub fn execute_move(match_ptr: *mut Match, move_val: Move) -> c_int;
+}
+
+pub fn get_moves(m: &Match, idx: u8) -> Vec<Move> {
+    let mut buffer = [Move::default(); 256];
+    let count = unsafe { generate_moves(m, buffer.as_mut_ptr(), 256, idx) };
+    buffer[0..(count as usize)].to_vec()
 }
 
 fn main() {
-    let m: MatchFFI = unsafe { create_default_match() };
-    println!("{:?}", m);
+    let mut m = Match::default();
+
+    println!("Match initialized successfully!");
+    println!("Turn: {}", if m.turn == 0 { "White" } else { "Black" });
+    println!("Board: {:?}", m.board);
+
+    let moves = get_moves(&m, 8);
+    println!("Moves: {:?}", moves);
+    unsafe { execute_move(&mut m, moves[1]) };
+    println!("Board: {:?}", m.board);
 }

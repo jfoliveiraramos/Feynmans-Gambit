@@ -1,3 +1,0 @@
-cargo:rustc-link-search=native=../engine/zig-out/lib
-cargo:rustc-link-lib=static=engine
-cargo:rerun-if-changed=../engine/src

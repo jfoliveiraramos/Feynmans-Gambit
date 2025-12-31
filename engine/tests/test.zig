@@ -21,35 +21,25 @@ const Move = moves.Move;
 
 const Board = game.Board;
 const Piece = game.Piece;
+const Pos = game.Pos;
 
 test "initial pawn movement" {
-    var match = try game.Match.default();
+    var match = game.Match.default();
+    const org = Pos.fromXY(0, 1);
     var correct_moves = moves.PieceMoveList{};
     _ = correct_moves.append(.{
-        .org = .{
-            .x = 0,
-            .y = 1,
-        },
-        .dst = .{
-            .x = 0,
-            .y = 2,
-        },
+        .org = org,
+        .dst = Pos.fromXY(0, 2),
     });
 
     _ = correct_moves.append(.{
-        .org = .{
-            .x = 0,
-            .y = 1,
-        },
-        .dst = .{
-            .x = 0,
-            .y = 3,
-        },
+        .org = org,
+        .dst = Pos.fromXY(0, 3),
     });
 
     const movements = moves.getPiecePlayableMoves(
         &match,
-        .{ .x = 0, .y = 1 },
+        org,
     );
 
     try std.testing.expect(correct_moves.len == movements.len);
@@ -83,8 +73,8 @@ test "game: checkmate detection" {
     var m3 = try game.Match.fromFEN("6rk/6pp/7N/8/8/8/8/6K1 b - - 0 1");
     try std.testing.expect(!moves.checkmate(&m3, .Black));
     _ = moves.executeMove(&m3, .{
-        .org = .{ .x = 7, .y = 2 },
-        .dst = .{ .x = 5, .y = 1 },
+        .org = Pos.fromXY(7, 2),
+        .dst = Pos.fromXY(5, 1),
     });
     try std.testing.expect(moves.checkmate(&m3, .Black));
 
