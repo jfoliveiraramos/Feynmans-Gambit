@@ -1,0 +1,22 @@
+# Cargo / Rust
+target/
+**/target/
+**/*.rs.bk
+
+# Build artifacts from engine-sys / other crates
+**/*.rlib
+**/*.d
+**/*.rmeta
+
+# Zig build outputs
+engine/zig-out/
+
+# IDE / editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
