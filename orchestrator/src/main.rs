@@ -42,10 +42,13 @@ fn print_board(board: [Piece; 64]) {
     println!("  a b c d e f g h\n");
 }
 fn main() {
-    let mut m = Match::default();
+    let mut m = Match::from_fen("rnbqkbnr/p1pppppp/8/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b5");
 
     print_board(m.board);
-    let plays = m.get_moves(8);
+    let plays = m.get_moves(8 * 4);
+
+    print_board(m.board);
+    println!("{:?}", plays);
     let play = plays.get(1).unwrap();
     println!("{:?}", play);
     m.execute(*play);

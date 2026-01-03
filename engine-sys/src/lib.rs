@@ -149,7 +149,10 @@ impl Match {
     pub fn from_fen(fen: &str) -> Self {
         let mut m = Self::empty();
         unsafe {
-            create_match(&mut m, fen.as_ptr(), fen.len());
+            let result = create_match(&mut m, fen.as_ptr(), fen.len());
+            if result != 0 {
+                panic!("Failed to parse FEN: error code {}", result);
+            }
         }
         m
     }
