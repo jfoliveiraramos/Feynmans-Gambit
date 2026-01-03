@@ -20,6 +20,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const engine_module = b.addModule("engine", .{ .root_source_file = b.path("src/engine.zig") });
     _ = b.addModule("lib", .{ .root_source_file = b.path("src/lib.zig") });
+    engine_module.addIncludePath(b.path("../shared"));
 
     const target = b.standardTargetOptions(.{});
 
@@ -31,6 +32,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
 
@@ -53,6 +55,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tests/test.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
     exe_unit_tests.root_module.addImport("engine", engine_module);
@@ -69,6 +72,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .pic = true,
+            .link_libc = true,
         }),
         .linkage = .static,
     });

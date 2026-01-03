@@ -39,7 +39,11 @@ function comment_header() {
 
 # Check and prepend header
 for ext in "${EXTENSIONS[@]}"; do
-    find . -type f -name "*.$ext" | while read -r file; do
+    find . -type f -name "*.$ext" \
+        -not -path "*/.zig-cache/*" \
+        -not -path "*/zig-out/*" \
+        -not -path "*/target/*" \
+        -not -path "*/node_modules/*" | while read -r file; do
         if ! grep -q "Branches' Gambit Copyright" "$file"; then
             tmpfile=$(mktemp)
             comment_header "$ext" >"$tmpfile"

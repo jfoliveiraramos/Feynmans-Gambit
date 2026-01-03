@@ -1,16 +1,54 @@
-use engine_sys::Match;
+// Branches' Gambit Copyright (C) 2025 João Ramos
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use engine_sys::{Colour, Match, Piece, PieceType};
+
+const COLOR_EMPTY: &str = "100;100;100"; // Dim Grey
+const COLOR_WHITE: &str = "255;255;255"; // Pure White
+const COLOR_BLACK: &str = "80;160;80"; // A nice "Chess Green" or "Wood" color
+
+fn print_board(board: [Piece; 64]) {
+    println!("\n  a b c d e f g h");
+    for rank in (0..8).rev() {
+        print!("{} ", rank + 1);
+
+        for file in 0..8 {
+            let index = rank * 8 + file;
+            let piece = board[index];
+            let piece_type = piece.get_type();
+            let glyph = char::from(piece);
+
+            if piece_type == PieceType::None {
+                print!("\x1b[38;2;{}m{} \x1b[0m", COLOR_EMPTY, glyph);
+            } else if piece.get_colour() == Colour::White {
+                print!("\x1b[38;2;{}m{} \x1b[0m", COLOR_WHITE, glyph);
+            } else {
+                print!("\x1b[38;2;{}m{} \x1b[0m", COLOR_BLACK, glyph);
+            }
+        }
+        println!("{}", rank + 1);
+    }
+    println!("  a b c d e f g h\n");
+}
 fn main() {
     let mut m = Match::default();
 
-    println!("Match initialized successfully!");
-    println!("Turn: {}", if m.turn == 0 { "White" } else { "Black" });
-    println!("Board: {:?}", m.board);
-    println!("Fen: {:?}", m.to_fen());
-
+    print_board(m.board);
     let plays = m.get_moves(8);
-    m.execute(plays.get(1).unwrap().clone());
+    let play = plays.get(1).unwrap();
+    println!("{:?}", play);
+    m.execute(*play);
 
-    println!("Moves: {:?}", plays);
-    println!("Board: {:?}", m.board);
+    print_board(m.board);
 }

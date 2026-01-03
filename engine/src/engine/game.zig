@@ -14,6 +14,9 @@
 
 const std = @import("std");
 const utils = @import("utils.zig");
+const constants = @cImport({
+    @cInclude("constants.h");
+});
 const List = utils.List;
 
 pub const Pos = packed struct(u8) {
@@ -28,7 +31,7 @@ pub const Pos = packed struct(u8) {
     }
 
     pub fn fromXY(x: u3, y: u3) Self {
-        return .{ .val = @as(u8, y) * 8 + x };
+        return .{ .val = @as(u8, 7 - y) * 8 + x };
     }
 
     pub fn isNone(self: Self) bool {
@@ -36,7 +39,7 @@ pub const Pos = packed struct(u8) {
     }
 
     pub fn coords(self: Self) struct { x: u3, y: u3 } {
-        return .{ .x = @intCast(self.val % 8), .y = @intCast(self.val / 8) };
+        return .{ .x = @intCast(self.val % 8), .y = @intCast(7 - self.val / 8) };
     }
 
     pub fn eq(self: Pos, other: Pos) bool {
@@ -45,8 +48,8 @@ pub const Pos = packed struct(u8) {
 };
 
 pub const Colour = enum(u8) {
-    White = 0,
-    Black = 1,
+    White = constants.WHITE,
+    Black = constants.BLACK,
 
     pub fn opposite(self: Colour) Colour {
         return if (self == .White) .Black else .White;
@@ -56,13 +59,13 @@ pub const Colour = enum(u8) {
 pub const Piece = packed struct(u8) {
     const Self = @This();
     pub const Type = enum(u4) {
-        None = 0,
-        Pawn,
-        Bishop,
-        Knight,
-        Rook,
-        Queen,
-        King,
+        None = constants.PIECE_NONE,
+        Pawn = constants.PIECE_PAWN,
+        Bishop = constants.PIECE_BISHOP,
+        Knight = constants.PIECE_KNIGHT,
+        Rook = constants.PIECE_ROOK,
+        Queen = constants.PIECE_QUEEN,
+        King = constants.PIECE_KING,
     };
     type: Type,
     colour: u1 = 0,
@@ -141,7 +144,7 @@ pub const Board = extern struct {
 
     pieces: [64]Piece,
 
-    pub inline fn at(self: *Self, pos: Pos) Piece {
+    pub inline fn at(self: *const Self, pos: Pos) Piece {
         return self.pieces[pos.val];
     }
 
@@ -363,7 +366,7 @@ pub const Match = extern struct {
         return match;
     }
 
-    pub fn print(self: *Match) void {
+    pub fn print(self: *const Match) void {
         for (0..8) |row| {
             var rowBuf: [8]u8 = .{0} ** 8;
             for (0..8) |col| {

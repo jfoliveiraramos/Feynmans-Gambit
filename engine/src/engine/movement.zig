@@ -160,8 +160,8 @@ pub fn getPiecePlayableMoves(match: *Match, pos: Pos) PieceMoveList {
     return filterMoves(match, MAX_PIECE_MOVES, pieceMoves);
 }
 
-fn hasPawnMoved(piece: Piece, pos: Pos) bool {
-    return ((piece.isWhite() and pos.val < 47) or (piece.isBlack() and pos.val > 15));
+fn hasPawnMoved(piece: Piece, y: u3) bool {
+    return ((piece.isBlack() and y > 1) or (piece.isWhite() and y < 6));
 }
 
 fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
@@ -169,14 +169,15 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
 
     const vdir: i8 = if (piece.isWhite()) -1 else 1;
 
-    const range: []const i8 = if (hasPawnMoved(piece, pos)) &.{
+    const coords = pos.coords();
+
+    const range: []const i8 = if (hasPawnMoved(piece, coords.y)) &.{
         1 * vdir,
     } else &.{
         1 * vdir,
         2 * vdir,
     };
 
-    const coords = pos.coords();
     for (range) |i| {
         const new_y = @as(i8, @intCast(coords.y)) + i;
         if (new_y < 0 or new_y >= 8) break;

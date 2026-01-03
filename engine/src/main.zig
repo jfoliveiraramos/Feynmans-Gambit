@@ -19,4 +19,8 @@ const movement = engine.movement;
 const ArrayList = std.ArrayList;
 const Match = game.Match;
 
-pub fn main() !void {}
+pub fn main() !void {
+    const m = Match.default();
+
+    m.print();
+}
