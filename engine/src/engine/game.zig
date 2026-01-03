@@ -199,8 +199,8 @@ pub const Match = extern struct {
     pub fn toFEN(self: Self, buf: []u8) usize {
         var fen: List(u8, 128) = .{};
 
-        var rank: i8 = 0;
-        while (rank <= 7) : (rank += 1) {
+        var rank: i8 = 7;
+        while (rank >= 0) : (rank -= 1) {
             var empty_count: u8 = 0;
             var file: u8 = 0;
             while (file < 8) : (file += 1) {
@@ -220,7 +220,7 @@ pub const Match = extern struct {
 
             if (empty_count != 0) fen.append('0' + empty_count);
 
-            if (rank < 7) fen.append('/');
+            if (rank > 0) fen.append('/');
         }
 
         fen.append(' ');
@@ -240,7 +240,7 @@ pub const Match = extern struct {
         } else {
             const coords = self.en_passant.coords();
             fen.append('a' + @as(u8, @intCast(coords.x)));
-            fen.append('1' + @as(u8, @intCast(coords.y)));
+            fen.append('1' + @as(u8, @intCast(7 - coords.y)));
         }
 
         @memcpy(buf[0..fen.len], fen.items());
@@ -326,9 +326,12 @@ pub const Match = extern struct {
                 .EnPassantTargetSqr => {
                     if (fen[i] != '-') {
                         if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
-                        if (fen[i + 1] < '0' or fen[i + 1] > '7') return error.InvalidPosition;
-                        if (fen[i + 2] != ' ') return error.UnexpectedChar;
-                        en_passant = Pos.fromXY(@intCast(fen[i] - 'a'), @intCast(fen[i + 1] - '0'));
+                        if (fen[i + 1] < '1' or fen[i + 1] > '8') return error.InvalidPosition;
+                        // if (fen[i + 2] != ' ') return error.UnexpectedChar;
+                        en_passant = Pos.fromXY(
+                            @intCast(fen[i] - 'a'),
+                            @intCast(7 - (fen[i + 1] - '1')),
+                        );
                         i += 3;
                     } else {
                         en_passant = Pos.none;

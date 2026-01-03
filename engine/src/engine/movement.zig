@@ -36,6 +36,7 @@ pub const Move = extern struct {
 
     const Flag = enum(u8) {
         None,
+        PawnDouble,
         EnPassant,
         Castling,
         PromoteToKnight,
@@ -65,24 +66,33 @@ pub const MoveList = List(Move, MAX_MOVES);
 pub fn executeMove(match: *Match, move: Move) Undo {
     var board = &match.board;
     const piece = board.at(move.org);
-    const captured = board.at(move.dst);
+    var captured = board.at(move.dst);
+    const en_passant = match.en_passant;
+    match.en_passant = Pos.none;
 
-    const orgCoords = move.org.coords();
     const dstCoords = move.dst.coords();
 
     match.board.set(Piece.empty, move.org);
 
     switch (move.flag) {
         .None => match.board.set(piece, move.dst),
+        .PawnDouble => {
+            match.board.set(piece, move.dst);
+            match.en_passant = move.dst;
+        },
         .Castling => {
             const rook = match.board.at(move.dst);
             const x: u3 = if (dstCoords.x == 7) 6 else 1;
             match.board.set(rook, Pos.fromXY(x, dstCoords.y));
         },
-        .EnPassant => match.board.set(
-            Piece.empty,
-            Pos.fromXY(dstCoords.x, orgCoords.y),
-        ),
+        .EnPassant => {
+            captured = match.board.at(en_passant);
+            match.board.set(piece, move.dst);
+            match.board.set(
+                Piece.empty,
+                en_passant,
+            );
+        },
         .PromoteToBishop => match.board.set(
             piece.promoteTo(.Bishop),
             move.dst,
@@ -103,7 +113,7 @@ pub fn executeMove(match: *Match, move: Move) Undo {
 
     return Undo{
         .captured = captured,
-        .en_passant = match.en_passant,
+        .en_passant = en_passant,
         .castling_rights = match.castling_rights,
     };
 }
@@ -116,25 +126,26 @@ pub fn undoMove(match: *Match, move: Move, undo: Undo) void {
     const piece = board.at(move.dst);
     board.set(piece, move.org);
 
-    if (undo.captured.type != .None) {
+    if (undo.captured.type != .None and move.flag != .EnPassant) {
         board.set(undo.captured, move.dst);
     }
 
     switch (move.flag) {
-        .None => match.board.set(Piece.empty, move.dst),
+        .None,
+        => match.board.set(Piece.empty, move.dst),
         .Castling => {
             const x: u3 = if (dstCoords.x == 7) 6 else 1;
             const rook = board.at(Pos.fromXY(x, dstCoords.y));
             board.set(rook, move.dst);
             board.set(Piece.empty, Pos.fromXY(x, dstCoords.y));
         },
-        .EnPassant => match.board.set(
-            Piece.new(.Pawn, piece.oppositeColour()),
-            Pos.fromXY(dstCoords.x, orgCoords.y),
-        ),
+        .EnPassant => {
+            match.board.set(Piece.empty, move.dst);
+            board.set(undo.captured, Pos.fromXY(dstCoords.x, orgCoords.y));
+        },
         else => match.board.set(
             piece.promoteTo(.Pawn),
-            move.dst,
+            move.org,
         ),
     }
 
@@ -190,6 +201,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
                     moves.append(move);
                 }
             } else {
+                if (i == 2 or i == -2) move.flag = .PawnDouble;
                 moves.append(move);
             }
         }
@@ -201,7 +213,7 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
         if (new_y < 0 or new_x < 0 or new_x >= 8 or new_y >= 8) continue;
         const dst = Pos.fromXY(@intCast(new_x), @intCast(new_y));
         const target = match.board.at(dst);
-        if (target.type != .None and target.isSameColour(piece)) {
+        if (target.type != .None and !target.isSameColour(piece)) {
             var move = Move{ .org = pos, .dst = dst };
             if (new_y == 0 or new_y == 7) {
                 for (Move.PROMOTIONS) |promotion| {
@@ -211,10 +223,13 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
             } else {
                 moves.append(move);
             }
-        }
-        if (!match.en_passant.isNone()) {
+        } else if (!match.en_passant.isNone()) {
+            const en_passant_target = match.board.at(match.en_passant);
             const en_passant_coords = match.en_passant.coords();
-            if (en_passant_coords.x == new_x and en_passant_coords.y == coords.y) {
+            if (en_passant_coords.x == new_x and
+                en_passant_coords.y == coords.y and
+                !en_passant_target.isSameColour(piece))
+            {
                 moves.append(.{
                     .org = pos,
                     .dst = dst,
