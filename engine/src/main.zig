@@ -19,7 +19,4 @@ const movement = engine.movement;
 const ArrayList = std.ArrayList;
 const Match = game.Match;
 
-pub fn main() !void {
-    var match = try Match.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
-    match.print();
-}
+pub fn main() !void {}

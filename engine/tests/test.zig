@@ -23,16 +23,16 @@ const Board = game.Board;
 const Piece = game.Piece;
 const Pos = game.Pos;
 
-test "initial pawn movement" {
+test "game: pawn movement" {
     var match = game.Match.default();
     const org = Pos.fromXY(0, 1);
     var correct_moves = moves.PieceMoveList{};
-    _ = correct_moves.append(.{
+    correct_moves.append(.{
         .org = org,
         .dst = Pos.fromXY(0, 2),
     });
 
-    _ = correct_moves.append(.{
+    correct_moves.append(.{
         .org = org,
         .dst = Pos.fromXY(0, 3),
     });
@@ -62,7 +62,7 @@ test "game: stalemate detection" {
 
     try std.testing.expect(moves.stalemate(&m, .Black));
 }
-//
+
 test "game: checkmate detection" {
     var m1 = try game.Match.fromFEN("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3");
     try std.testing.expect(moves.checkmate(&m1, .White));
@@ -80,4 +80,12 @@ test "game: checkmate detection" {
 
     var m4 = try game.Match.fromFEN("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1");
     try std.testing.expect(moves.checkmate(&m4, .Black));
+}
+
+test "game: fen" {
+    const fen1 = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq -";
+    var buf1: [128]u8 = undefined;
+    const m1 = try game.Match.fromFEN(fen1);
+    const len1 = m1.toFEN(buf1[0..]);
+    try std.testing.expectEqualStrings(fen1, buf1[0..len1]);
 }

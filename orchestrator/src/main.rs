@@ -1,4 +1,4 @@
-use engine_sys::{Match, execute_move, get_moves};
+use engine_sys::Match;
 
 fn main() {
     let mut m = Match::default();
@@ -6,9 +6,11 @@ fn main() {
     println!("Match initialized successfully!");
     println!("Turn: {}", if m.turn == 0 { "White" } else { "Black" });
     println!("Board: {:?}", m.board);
+    println!("Fen: {:?}", m.to_fen());
 
-    let moves = get_moves(&m, 8);
-    println!("Moves: {:?}", moves);
-    unsafe { execute_move(&mut m, moves[1]) };
+    let plays = m.get_moves(8);
+    m.execute(plays.get(1).unwrap().clone());
+
+    println!("Moves: {:?}", plays);
     println!("Board: {:?}", m.board);
 }

@@ -28,6 +28,15 @@ pub export fn create_match(
     return 0;
 }
 
+pub export fn convert_match_to_fen(opt_match: ?*Match, opt_fen: ?[*]u8) c_int {
+    const match = opt_match orelse return -1;
+    const fen = opt_fen orelse return -1;
+
+    const len = match.toFEN(fen[0..128]);
+
+    return @intCast(len);
+}
+
 pub export fn generate_moves(
     opt_match: ?*Match,
     opt_out: ?[*]Move,

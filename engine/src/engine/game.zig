@@ -92,7 +92,7 @@ pub const Piece = packed struct(u8) {
         return @as(Colour, @enumFromInt(self.colour)).opposite();
     }
 
-    pub fn toString(self: Self) u8 {
+    pub fn toChar(self: Self) u8 {
         const c: u8 = switch (self.type) {
             .None => '.',
             .Pawn => 'p',
@@ -192,6 +192,59 @@ pub const Match = extern struct {
             .en_passant = null,
         };
     }
+
+    pub fn toFEN(self: Self, buf: []u8) usize {
+        var fen: List(u8, 128) = .{};
+
+        var rank: i8 = 0;
+        while (rank <= 7) : (rank += 1) {
+            var empty_count: u8 = 0;
+            var file: u8 = 0;
+            while (file < 8) : (file += 1) {
+                const index = @as(usize, @intCast(rank)) * 8 + file;
+                const piece = self.board.pieces[index];
+
+                if (piece.type == .None) {
+                    empty_count += 1;
+                } else {
+                    if (empty_count != 0) {
+                        fen.append('0' + empty_count);
+                        empty_count = 0;
+                    }
+                    fen.append(piece.toChar());
+                }
+            }
+
+            if (empty_count != 0) fen.append('0' + empty_count);
+
+            if (rank < 7) fen.append('/');
+        }
+
+        fen.append(' ');
+        fen.append(if (self.turn == .White) 'w' else 'b');
+        fen.append(' ');
+
+        const start_len = fen.len;
+        if ((self.castling_rights & @intFromEnum(Castling.WhiteKing)) != 0) fen.append('K');
+        if ((self.castling_rights & @intFromEnum(Castling.WhiteQueen)) != 0) fen.append('Q');
+        if ((self.castling_rights & @intFromEnum(Castling.BlackKing)) != 0) fen.append('k');
+        if ((self.castling_rights & @intFromEnum(Castling.BlackQueen)) != 0) fen.append('q');
+        if (fen.len == start_len) fen.append('-');
+        fen.append(' ');
+
+        if (self.en_passant.isNone()) {
+            fen.append('-');
+        } else {
+            const coords = self.en_passant.coords();
+            fen.append('a' + @as(u8, @intCast(coords.x)));
+            fen.append('1' + @as(u8, @intCast(coords.y)));
+        }
+
+        @memcpy(buf[0..fen.len], fen.items());
+
+        return fen.len;
+    }
+
     pub fn fromFEN(fen: []const u8) FenError!Self {
         var board: Board = .{ .pieces = .{Piece.empty} ** 64 };
         var turn: Colour = undefined;
@@ -260,7 +313,7 @@ pub const Match = extern struct {
                         'K' => castle_availability |= @intFromEnum(Castling.WhiteKing),
                         'Q' => castle_availability |= @intFromEnum(Castling.WhiteQueen),
                         'k' => castle_availability |= @intFromEnum(Castling.BlackKing),
-                        'q' => castle_availability |= @intFromEnum(Castling.BlackKing),
+                        'q' => castle_availability |= @intFromEnum(Castling.BlackQueen),
                         '-' => {},
                         ' ' => state = .EnPassantTargetSqr,
                         else => return error.UnexpectedChar,
@@ -317,7 +370,7 @@ pub const Match = extern struct {
                 const piece = self.board.at(
                     Pos.fromXY(@intCast(col), @intCast(row)),
                 );
-                rowBuf[col] = piece.toString();
+                rowBuf[col] = piece.toChar();
             }
             std.debug.print("{s}\n", .{rowBuf});
         }

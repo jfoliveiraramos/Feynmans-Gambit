@@ -186,10 +186,10 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
             if (new_y == 0 or new_y == 7) {
                 for (Move.PROMOTIONS) |promotion| {
                     move.flag = promotion;
-                    _ = moves.append(move);
+                    moves.append(move);
                 }
             } else {
-                _ = moves.append(move);
+                moves.append(move);
             }
         }
     }
@@ -205,16 +205,16 @@ fn getPawnMoves(match: *Match, pos: Pos, piece: Piece) PieceMoveList {
             if (new_y == 0 or new_y == 7) {
                 for (Move.PROMOTIONS) |promotion| {
                     move.flag = promotion;
-                    _ = moves.append(move);
+                    moves.append(move);
                 }
             } else {
-                _ = moves.append(move);
+                moves.append(move);
             }
         }
         if (!match.en_passant.isNone()) {
             const en_passant_coords = match.en_passant.coords();
             if (en_passant_coords.x == new_x and en_passant_coords.y == coords.y) {
-                _ = moves.append(.{
+                moves.append(.{
                     .org = pos,
                     .dst = dst,
                     .flag = .EnPassant,
@@ -323,14 +323,14 @@ fn getMovesInDirections(match: *Match, pos: Pos, piece: Piece, directions: []con
             const target = (match.board.at(dst));
             if (target.type != .None) {
                 if (!target.isSameColour(piece)) {
-                    _ = moves.append(.{
+                    moves.append(.{
                         .org = pos,
                         .dst = dst,
                     });
                 }
                 break;
             } else {
-                _ = moves.append(
+                moves.append(
                     .{
                         .org = pos,
                         .dst = dst,
@@ -381,7 +381,7 @@ fn getCastling(match: *Match, pos: Pos, king: Piece) PieceMoveList {
         }
 
         if (can_castle) {
-            _ = moves.append(.{
+            moves.append(.{
                 .org = pos,
                 .dst = dst,
                 .flag = .Castling,
@@ -406,7 +406,7 @@ fn filterMoves(
 
     for (moves.items()) |move| {
         if (validMove(match, move)) {
-            _ = filtered_moves.append(move);
+            filtered_moves.append(move);
         }
     }
     return filtered_moves;
