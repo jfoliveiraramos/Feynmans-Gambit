@@ -1,0 +1,84 @@
+// Branches' Gambit Copyright (C) 2025 João Ramos
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+// 
+// You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+const std = @import("std");
+const engine = @import("engine");
+const game = engine.game;
+const movement = engine.movement;
+const Match = game.Match;
+const Board = game.Board;
+const Piece = game.Piece;
+const Pos = game.Pos;
+const Move = movement.Move;
+const MAX_MOVES = movement.MAX_MOVES;
+
+pub export fn create_default_match(opt_match: ?*Match) c_int {
+    const match = opt_match orelse return -1;
+    match.* = Match.default();
+    return 0;
+}
+
+pub export fn create_match(
+    opt_match: ?*Match,
+    opt_fen: ?[*]const u8,
+    fen_len: usize,
+) c_int {
+    const match = opt_match orelse return -1;
+    const fen = opt_fen orelse return -1;
+
+    match.* = Match.fromFEN(fen[0..fen_len]) catch return -2;
+
+    return 0;
+}
+
+pub export fn convert_match_to_fen(opt_match: ?*Match, opt_fen: ?[*]u8) c_int {
+    const match = opt_match orelse return -1;
+    const fen = opt_fen orelse return -1;
+
+    const len = match.toFEN(fen[0..128]);
+
+    return @intCast(len);
+}
+
+pub export fn generate_moves(
+    opt_match: ?*Match,
+    opt_out: ?[*]Move,
+    capacity: usize,
+    idx: u8,
+) c_int {
+    const match = opt_match orelse return -1;
+    const out = opt_out orelse return -1;
+
+    const pos = Pos.fromIndex(idx);
+    const moves = movement.getPiecePlayableMoves(
+        match,
+        pos,
+    );
+
+    const len = @min(moves.len, capacity);
+    for (moves.items()[0..len], 0..) |move, i| {
+        out[i] = move;
+    }
+
+    return @intCast(len);
+}
+
+pub export fn execute_move(
+    opt_match: ?*Match,
+    move: Move,
+) c_int {
+    const match = opt_match orelse return -1;
+    _ = movement.executeMove(match, move);
+    return 0;
+}

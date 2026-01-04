@@ -1,0 +1,11 @@
+[package]
+name = "engine-sys"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+links = "engine"
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.70"
