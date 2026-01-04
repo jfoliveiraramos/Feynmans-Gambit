@@ -18,7 +18,7 @@ You should have received a copy of the GNU Affero General Public License along w
 EOF
 
 # File extensions to target
-EXTENSIONS=("zig" "gleam" "rs" "go" "svelte")
+EXTENSIONS=("zig" "gleam" "rs" "go" "svelte" "h" "py")
 
 # Convert header to comment based on file type
 function comment_header() {
@@ -26,11 +26,14 @@ function comment_header() {
     local comment=""
     while IFS= read -r line; do
         case "$ext" in
-        zig | gleam | rs | go)
+        zig | gleam | rs | go | h)
             comment+="// $line"$'\n'
             ;;
         svelte)
             comment+="<!-- $line -->"$'\n'
+            ;;
+        py)
+            comment+="# $line"$'\n'
             ;;
         esac
     done <<<"$HEADER"

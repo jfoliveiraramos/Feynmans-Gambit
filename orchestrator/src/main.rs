@@ -14,9 +14,9 @@
 
 use engine_sys::{Colour, Match, Piece, PieceType};
 
-const COLOR_EMPTY: &str = "100;100;100"; // Dim Grey
-const COLOR_WHITE: &str = "255;255;255"; // Pure White
-const COLOR_BLACK: &str = "80;160;80"; // A nice "Chess Green" or "Wood" color
+const COLOR_EMPTY: &str = "100;100;100";
+const COLOR_WHITE: &str = "255;255;255";
+const COLOR_BLACK: &str = "80;160;80";
 
 fn print_board(board: [Piece; 64]) {
     println!("\n  a b c d e f g h");
@@ -48,9 +48,7 @@ fn main() {
     let plays = m.get_moves(8 * 4);
 
     print_board(m.board);
-    println!("{:?}", plays);
     let play = plays.get(1).unwrap();
-    println!("{:?}", play);
     m.execute(*play);
 
     print_board(m.board);

@@ -327,7 +327,7 @@ pub const Match = extern struct {
                     if (fen[i] != '-') {
                         if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
                         if (fen[i + 1] < '1' or fen[i + 1] > '8') return error.InvalidPosition;
-                        // if (fen[i + 2] != ' ') return error.UnexpectedChar;
+                        // TODO: if (fen[i + 2] != ' ') return error.UnexpectedChar;
                         en_passant = Pos.fromXY(
                             @intCast(fen[i] - 'a'),
                             @intCast(7 - (fen[i + 1] - '1')),
