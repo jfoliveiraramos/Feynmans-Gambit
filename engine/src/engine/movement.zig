@@ -27,6 +27,7 @@ pub const Undo = struct {
     captured: Piece,
     en_passant: Pos,
     castling_rights: u8,
+    half_move: u8,
 };
 
 pub const Move = extern struct {
@@ -68,9 +69,10 @@ pub fn executeMove(match: *Match, move: Move) Undo {
     const piece = board.at(move.org);
     var captured = board.at(move.dst);
     const en_passant = match.en_passant;
-    match.en_passant = Pos.none;
-
+    const half_move = match.half_move;
     const dstCoords = move.dst.coords();
+
+    match.en_passant = Pos.none;
 
     match.board.set(Piece.empty, move.org);
 
@@ -111,10 +113,19 @@ pub fn executeMove(match: *Match, move: Move) Undo {
         ),
     }
 
+    if (captured.type != .None) {
+        match.half_move = 0;
+    } else {
+        match.half_move += 1;
+    }
+
+    match.full_move += 1;
+
     return Undo{
         .captured = captured,
         .en_passant = en_passant,
         .castling_rights = match.castling_rights,
+        .half_move = half_move,
     };
 }
 
@@ -151,6 +162,8 @@ pub fn undoMove(match: *Match, move: Move, undo: Undo) void {
 
     match.en_passant = undo.en_passant;
     match.castling_rights = undo.castling_rights;
+    match.half_move = undo.half_move;
+    match.full_move -= 1;
 }
 
 fn getPieceMoves(match: *Match, pos: Pos) PieceMoveList {

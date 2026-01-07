@@ -176,6 +176,9 @@ pub const Match = extern struct {
     castling_rights: u8,
     en_passant: Pos,
 
+    half_move: u8,
+    full_move: u32,
+
     const FenError = error{
         InvalidRowCount,
         UnexpectedChar,
@@ -184,7 +187,7 @@ pub const Match = extern struct {
     };
 
     pub fn default() Self {
-        return Self.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -") catch unreachable;
+        return Self.fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 0") catch unreachable;
     }
 
     pub fn empty() Self {
@@ -193,6 +196,8 @@ pub const Match = extern struct {
             .turn = .White,
             .castling_rights = FULL_CASTLING_RIGHTS,
             .en_passant = null,
+            .half_move = 0,
+            .full_move = 0,
         };
     }
 
@@ -242,6 +247,18 @@ pub const Match = extern struct {
             fen.append('a' + @as(u8, @intCast(coords.x)));
             fen.append('1' + @as(u8, @intCast(7 - coords.y)));
         }
+        fen.append(' ');
+
+        var half_move_buf: [3]u8 = undefined;
+        const half_move = std.fmt.bufPrint(&half_move_buf, "{d}", .{self.half_move}) catch unreachable;
+        fen.appendSlice(half_move);
+        fen.append(' ');
+
+        var full_move_buf: [10]u8 = undefined;
+        const full_move = std.fmt.bufPrint(&full_move_buf, "{d}", .{self.full_move}) catch
+            unreachable;
+
+        fen.appendSlice(full_move);
 
         @memcpy(buf[0..fen.len], fen.items());
 
@@ -253,99 +270,111 @@ pub const Match = extern struct {
         var turn: Colour = undefined;
         var castle_availability: u4 = 0;
         var en_passant: Pos = undefined;
-        const State = enum {
-            PiecePlacement,
-            ActiveColor,
-            CastleAvailability,
-            EnPassantTargetSqr,
-            HalfmoveClock,
-            FullmoveNumber,
-            End,
-        };
-        var state = State.PiecePlacement;
+        var half_move: u8 = undefined;
+        var full_move: u32 = undefined;
         var i: usize = 0;
-        while (state != .End and i < fen.len) {
-            switch (state) {
-                .PiecePlacement => {
-                    var row: u8 = 0;
-                    var col: u8 = 0;
-                    for (fen, 0..) |c, index| {
-                        switch (c) {
-                            '/' => {
-                                if (col != 8) return error.InvalidRowCount;
-                                row += 1;
-                                col = 0;
-                            },
-                            '1'...'8' => {
-                                col += c - '0';
-                            },
-                            'a'...'z', 'A'...'Z' => {
-                                const piece_colour = Piece.colourFrom(c);
-                                const piece_type = Piece.typeFrom(c);
-                                board.set(
-                                    Piece.new(piece_type, piece_colour),
-                                    Pos.fromXY(@intCast(col), @intCast(row)),
-                                );
-                                col += 1;
-                            },
-                            ' ' => {
-                                if (row != 7 or col != 8) {
-                                    return error.UnexpectedSpace;
-                                }
-                                state = .ActiveColor;
-                                i = index + 1;
-                                break;
-                            },
-                            else => return error.UnexpectedChar,
-                        }
-                        if (col > 8) return error.InvalidRowCount;
-                    }
+
+        var row: u8 = 0;
+        var col: u8 = 0;
+        for (fen, 0..) |c, index| {
+            switch (c) {
+                '/' => {
+                    if (col != 8) return error.InvalidRowCount;
+                    row += 1;
+                    col = 0;
                 },
-                .ActiveColor => {
-                    switch (fen[i]) {
-                        'w' => turn = .White,
-                        'b' => turn = .Black,
-                        else => return error.UnexpectedChar,
-                    }
-                    if (fen[i + 1] != ' ') return error.UnexpectedChar;
-                    i += 2;
-                    state = .CastleAvailability;
+                '1'...'8' => {
+                    col += c - '0';
                 },
-                .CastleAvailability => {
-                    switch (fen[i]) {
-                        'K' => castle_availability |= @intFromEnum(Castling.WhiteKing),
-                        'Q' => castle_availability |= @intFromEnum(Castling.WhiteQueen),
-                        'k' => castle_availability |= @intFromEnum(Castling.BlackKing),
-                        'q' => castle_availability |= @intFromEnum(Castling.BlackQueen),
-                        '-' => {},
-                        ' ' => state = .EnPassantTargetSqr,
-                        else => return error.UnexpectedChar,
-                    }
-                    i += 1;
+                'a'...'z', 'A'...'Z' => {
+                    const piece_colour = Piece.colourFrom(c);
+                    const piece_type = Piece.typeFrom(c);
+                    board.set(
+                        Piece.new(piece_type, piece_colour),
+                        Pos.fromXY(@intCast(col), @intCast(row)),
+                    );
+                    col += 1;
                 },
-                .EnPassantTargetSqr => {
-                    if (fen[i] != '-') {
-                        if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
-                        if (fen[i + 1] < '1' or fen[i + 1] > '8') return error.InvalidPosition;
-                        // TODO: if (fen[i + 2] != ' ') return error.UnexpectedChar;
-                        en_passant = Pos.fromXY(
-                            @intCast(fen[i] - 'a'),
-                            @intCast(7 - (fen[i + 1] - '1')),
-                        );
-                        i += 3;
-                    } else {
-                        en_passant = Pos.none;
+                ' ' => {
+                    if (row != 7 or col != 8) {
+                        return error.UnexpectedSpace;
                     }
-                    state = .End;
+                    i = index + 1;
+                    break;
                 },
-                else => unreachable,
+                else => return error.UnexpectedChar,
             }
+            if (col > 8) return error.InvalidRowCount;
         }
+
+        switch (fen[i]) {
+            'w' => turn = .White,
+            'b' => turn = .Black,
+            else => return error.UnexpectedChar,
+        }
+        if (fen[i + 1] != ' ') return error.UnexpectedChar;
+        i += 2;
+
+        if (fen[i] != '-') {
+            while (true) : (i += 1) {
+                switch (fen[i]) {
+                    'K' => castle_availability |= @intFromEnum(Castling.WhiteKing),
+                    'Q' => castle_availability |= @intFromEnum(Castling.WhiteQueen),
+                    'k' => castle_availability |= @intFromEnum(Castling.BlackKing),
+                    'q' => castle_availability |= @intFromEnum(Castling.BlackQueen),
+                    ' ' => break,
+                    else => return error.UnexpectedChar,
+                }
+            }
+        } else {
+            i += 1;
+        }
+        i += 1;
+
+        if (fen[i] != '-') {
+            if (fen[i] < 'a' or fen[i] > 'h') return error.InvalidPosition;
+            if (fen[i + 1] < '1' or fen[i + 1] > '8') return error.InvalidPosition;
+            en_passant = Pos.fromXY(
+                @intCast(fen[i] - 'a'),
+                @intCast(7 - (fen[i + 1] - '1')),
+            );
+            i += 2;
+        } else {
+            en_passant = Pos.none;
+            i += 1;
+        }
+
+        if (fen[i] != ' ') return error.UnexpectedChar;
+        i += 1;
+
+        half_move = blk: {
+            var it = std.mem.tokenizeScalar(
+                u8,
+                fen[i..],
+                ' ',
+            );
+            const token = it.next() orelse return error.UnexpectedChar;
+            const value = std.fmt.parseInt(u8, token, 10) catch {
+                return error.UnexpectedChar;
+            };
+            i += token.len;
+            break :blk value;
+        };
+
+        if (fen[i] != ' ') return error.UnexpectedChar;
+        i += 1;
+
+        full_move = std.fmt.parseInt(u32, fen[i..], 10) catch {
+            return error.UnexpectedChar;
+        };
+
         return Self{
             .board = board,
             .turn = turn,
             .castling_rights = castle_availability,
             .en_passant = en_passant,
+            .half_move = half_move,
+            .full_move = full_move,
         };
     }
 

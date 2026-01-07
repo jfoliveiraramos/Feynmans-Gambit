@@ -57,13 +57,13 @@ test "game: checkmate detection" {
 }
 
 test "game: fen" {
-    const fen1 = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq -";
+    const fen1 = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 21 325";
     var buf1: [128]u8 = undefined;
     const m1 = try game.Match.fromFEN(fen1);
     const len1 = m1.toFEN(buf1[0..]);
     try std.testing.expectEqualStrings(fen1, buf1[0..len1]);
 
-    const fen2 = "rnbqkbnr/p1pppppp/8/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b5";
+    const fen2 = "rnbqkbnr/p1pppppp/8/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b5 24 2";
     var buf2: [128]u8 = undefined;
     const m2 = try game.Match.fromFEN(fen2);
     const len2 = m2.toFEN(buf2[0..]);
@@ -71,7 +71,7 @@ test "game: fen" {
 }
 
 test "movement: en_passant" {
-    var match = try game.Match.fromFEN("rnbqkbnr/p1pppppp/8/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b5");
+    var match = try game.Match.fromFEN("rnbqkbnr/p1pppppp/8/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b5 0 0");
 
     const movements = movement.getPiecePlayableMoves(
         &match,
@@ -94,7 +94,7 @@ test "movement: en_passant" {
     var buf: [128]u8 = undefined;
     const len = match.toFEN(buf[0..]);
     try std.testing.expectEqualStrings(
-        "rnbqkbnr/p1pppppp/1P6/8/8/8/1PPPPPPP/RNBQKBNR w KQkq -",
+        "rnbqkbnr/p1pppppp/1P6/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1",
         buf[0..len],
     );
 }
